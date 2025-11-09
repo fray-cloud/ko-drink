@@ -1,0 +1,3 @@
+include:
+  - path: front/docker-compose.yml
+    project_directory: ./front
