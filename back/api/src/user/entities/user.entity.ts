@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-export type Provider = 'naver' | 'google' | 'daum' | 'local';
+export type Provider = 'naver' | 'google' | 'kakao' | 'local';
 
 @Entity('users')
 export class User {
@@ -24,7 +24,7 @@ export class User {
 
   @Column({
     type: 'enum',
-    enum: ['naver', 'google', 'daum', 'local'],
+    enum: ['naver', 'google', 'kakao', 'local'],
   })
   provider: Provider;
 

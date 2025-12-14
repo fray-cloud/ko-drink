@@ -65,17 +65,17 @@ export class AuthController {
     res.redirect(`/?token=${result.access_token}`);
   }
 
-  @Get('daum')
-  @UseGuards(AuthGuard('daum'))
-  async daumAuth() {
+  @Get('kakao')
+  @UseGuards(AuthGuard('kakao'))
+  async kakaoAuth() {
     // Guard redirects
   }
 
-  @Get('daum/callback')
-  @UseGuards(AuthGuard('daum'))
-  async daumAuthCallback(@Request() req, @Res() res) {
+  @Get('kakao/callback')
+  @UseGuards(AuthGuard('kakao'))
+  async kakaoAuthCallback(@Request() req, @Res() res) {
     const result = await this.authService.validateSocialUser(
-      'daum',
+      'kakao',
       req.user.providerId,
       req.user.email,
       req.user.name,

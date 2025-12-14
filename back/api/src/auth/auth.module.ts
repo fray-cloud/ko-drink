@@ -9,7 +9,7 @@ import { LocalStrategy } from './strategies/local.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { NaverAuthStrategy } from './strategies/naver.strategy';
 import { GoogleAuthStrategy } from './strategies/google.strategy';
-import { DaumAuthStrategy } from './strategies/daum.strategy';
+import { KakaoAuthStrategy } from './strategies/kakao.strategy';
 import { UserModule } from '../user/user.module';
 
 @Module({
@@ -32,7 +32,7 @@ import { UserModule } from '../user/user.module';
     JwtStrategy,
     NaverAuthStrategy,
     GoogleAuthStrategy,
-    DaumAuthStrategy,
+    KakaoAuthStrategy,
   ],
   exports: [AuthService],
 })

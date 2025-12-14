@@ -8,7 +8,7 @@ export class CreateUserDto {
   @IsString()
   name: string;
 
-  @IsEnum(['naver', 'google', 'daum', 'local'])
+  @IsEnum(['naver', 'google', 'kakao', 'local'])
   provider: Provider;
 
   @IsString()
