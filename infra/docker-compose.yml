@@ -1,0 +1,3 @@
+include:
+  - path: nginx/docker-compose.yml
+    project_directory: ./nginx

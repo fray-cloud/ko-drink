@@ -1,0 +1,16 @@
+services:
+  nginx:
+    image: nginx
+    container_name: gateway
+    restart: always
+    env_file:
+      - ../../.env
+    ports:
+      - "${PORT:-80}:80"
+      - "${SSL_PORT:-443}:443"
+    volumes:
+      - ./nginx.dev.conf:/etc/nginx/nginx.conf
+      - ./logs/nginx:/var/log/nginx
+      - ./ssl:/etc/nginx/ssl
+    networks:
+      - app-network
