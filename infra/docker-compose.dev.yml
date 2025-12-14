@@ -1,3 +1,7 @@
 include:
   - path: nginx/docker-compose.dev.yml
     project_directory: ./nginx
+  - path: postgres/docker-compose.dev.yml
+    project_directory: ./postgres
+  - path: redis/docker-compose.dev.yml
+    project_directory: ./redis
