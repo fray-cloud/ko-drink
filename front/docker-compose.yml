@@ -5,9 +5,12 @@ services:
       dockerfile: Dockerfile
       args:
         - NODE_ENV=production
+    container_name: web
     expose:
       - 80
     environment:
       - NODE_ENV=production
     env_file:
       - ../.env
+    networks:
+      - app-network
