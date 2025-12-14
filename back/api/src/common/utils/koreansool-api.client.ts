@@ -15,8 +15,10 @@ export class KoreansoolApiClient {
       baseURL: this.baseUrl,
       timeout: 10000,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        Accept:
+          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'ko-KR,ko;q=0.9',
       },
     });
@@ -55,12 +57,18 @@ export class KoreansoolApiClient {
     }
   }
 
-  async getRecipe(book: string, liq: string, dup?: number): Promise<string> {
+  async getRecipe(book?: string, liq?: string, dup?: number): Promise<string> {
     try {
-      const params: any = { book, liq };
-      if (dup) {
-        params.dup = dup;
+      const params: any = {};
+      // book과 liq가 있으면 파라미터에 추가
+      if (book) {
+        params.book = book;
       }
+      if (liq) {
+        params.liq = liq;
+      }
+      // dup가 없으면 기본값 1 사용
+      params.dup = dup ?? 1;
       const response = await this.client.get('/recipe.php', { params });
       return response.data;
     } catch (error) {
@@ -90,9 +98,8 @@ export class KoreansoolApiClient {
   async getImage(book: string, liq: string, dup?: number): Promise<Buffer> {
     try {
       const params: any = { book, liq };
-      if (dup) {
-        params.dup = dup;
-      }
+      // dup가 없으면 기본값 1 사용
+      params.dup = dup ?? 1;
       const response = await this.client.get('/print_org_img.php', {
         params,
         responseType: 'arraybuffer',
@@ -106,7 +113,11 @@ export class KoreansoolApiClient {
     }
   }
 
-  async getSimilarRecipes(book: string, liq: string, dup: number): Promise<string> {
+  async getSimilarRecipes(
+    book: string,
+    liq: string,
+    dup: number,
+  ): Promise<string> {
     try {
       const response = await this.client.get('/anal1.php', {
         params: { book, liq, dup },

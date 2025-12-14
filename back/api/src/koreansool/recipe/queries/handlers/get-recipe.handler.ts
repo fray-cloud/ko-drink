@@ -11,16 +11,24 @@ export class GetRecipeHandler implements IQueryHandler<GetRecipeQuery> {
   ) {}
 
   async execute(query: GetRecipeQuery) {
-    const html = await this.apiClient.getRecipe(
-      query.book,
-      query.liq,
-      query.dup,
-    );
+    // dup가 없으면 기본값 1 사용
+    const dup = query.dup ?? 1;
+    const html = await this.apiClient.getRecipe(query.book, query.liq, dup);
+
+    // book만 있거나 liq만 있으면 모든 레시피 반환
+    if ((query.book && !query.liq) || (!query.book && query.liq)) {
+      const allRecipes = this.htmlParser.parseAllRecipes(html);
+      return allRecipes;
+    }
+
+    // 둘 다 있으면 단일 레시피 반환
     const recipe = this.htmlParser.parseRecipe(html);
+    const metadata = this.htmlParser.parseRecipeMetadata(html);
+
     return {
-      book: query.book,
-      liquor: query.liq,
-      dup: query.dup,
+      book: metadata?.book || query.book || undefined,
+      liquor: metadata?.liquor || query.liq || undefined,
+      dup,
       recipe,
     };
   }
