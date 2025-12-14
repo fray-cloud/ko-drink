@@ -23,13 +23,16 @@ project-structure:
 	@mkdir -p back front infra
 
 dev:
-	docker-compose -f docker-compose.dev.yml up --build
+	docker compose -f docker-compose.dev.yml up -d
+
+dev-build-up:
+	docker compose -f docker-compose.dev.yml up --build -d
 
 dev-down:
-	docker-compose -f docker-compose.dev.yml down
+	docker compose -f docker-compose.dev.yml down
 
 prod:
-	docker-compose up --build -d
+	docker compose up --build -d
 
 prod-down:
-	docker-compose down
+	docker compose down

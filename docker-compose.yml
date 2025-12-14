@@ -1,3 +1,5 @@
 include:
   - path: front/docker-compose.yml
     project_directory: ./front
+  - path: infra/docker-compose.yml
+    project_directory: ./infra

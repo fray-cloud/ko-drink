@@ -1,3 +1,9 @@
 include:
   - path: front/docker-compose.dev.yml
     project_directory: ./front
+  - path: infra/docker-compose.dev.yml
+    project_directory: ./infra
+
+networks:
+  app-network:
+    driver: bridge
