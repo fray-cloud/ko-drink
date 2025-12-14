@@ -3,6 +3,8 @@ include:
     project_directory: ./front
   - path: infra/docker-compose.dev.yml
     project_directory: ./infra
+  - path: back/docker-compose.dev.yml
+    project_directory: ./back
 
 networks:
   app-network:

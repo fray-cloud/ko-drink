@@ -1,0 +1,14 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api
+    expose:
+      - ${API_PORT:-4000}
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - ../../.env
+    networks:
+      - app-network

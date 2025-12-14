@@ -12,3 +12,5 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf
       - ./logs/nginx:/var/log/nginx
       - ./ssl:/etc/nginx/ssl
+    networks:
+      - app-network
