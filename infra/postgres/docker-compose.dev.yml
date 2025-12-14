@@ -6,7 +6,7 @@ services:
     environment:
       - POSTGRES_USER=${DATABASE_USER:-postgres}
       - POSTGRES_PASSWORD=${DATABASE_PASSWORD:-postgres}
-      - POSTGRES_DB=${DATABASE_NAME:-sul_database}
+      - POSTGRES_DB=${DATABASE_NAME:-kodrink}
     env_file:
       - ../../.env
     ports:
