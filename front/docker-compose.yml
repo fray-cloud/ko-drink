@@ -4,9 +4,9 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-      - NODE_ENV=production
-    ports:
-      - "80:80"
+        - NODE_ENV=production
+    expose:
+      - 80
     environment:
       - NODE_ENV=production
     env_file:
