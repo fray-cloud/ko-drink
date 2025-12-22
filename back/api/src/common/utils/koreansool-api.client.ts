@@ -59,17 +59,28 @@ export class KoreansoolApiClient {
 
   async getRecipe(book?: string, liq?: string, dup?: number): Promise<string> {
     try {
-      const params: any = {};
-      // book과 liq가 있으면 파라미터에 추가
-      if (book) {
-        params.book = book;
+      // 모든 요청을 POST로 보냄 (method=simple)
+      const formData = new URLSearchParams();
+      formData.append('method', 'simple');
+      
+      // book이 없으면 @, 있으면 실제 값
+      formData.append('book', book || '@');
+      
+      // liq가 없으면 @, 있으면 실제 값
+      formData.append('liq', liq || '@');
+      
+      // dup가 없으면 @, 있으면 실제 값 (단, book과 liq가 모두 있을 때만 dup 사용)
+      if (book && liq) {
+        formData.append('dup', dup ? dup.toString() : '@');
+      } else {
+        formData.append('dup', '@');
       }
-      if (liq) {
-        params.liq = liq;
-      }
-      // dup가 없으면 기본값 1 사용
-      params.dup = dup ?? 1;
-      const response = await this.client.get('/recipe.php', { params });
+      
+      const response = await this.client.post('/recipe.php', formData.toString(), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
       return response.data;
     } catch (error) {
       if (error instanceof AxiosError) {

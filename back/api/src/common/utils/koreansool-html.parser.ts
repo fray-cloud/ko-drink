@@ -285,23 +285,40 @@ export class KoreansoolHtmlParser {
     const $ = cheerio.load(html);
     const recipes: RecipeInfo[] = [];
 
-    // 모든 레시피 테이블 파싱
-    $('.table_each_rcp').each((_, element) => {
+    // 모든 레시피 테이블 파싱 (.table_each_rcp 또는 .table_rcp)
+    $('.table_each_rcp, .table_rcp').each((_, element) => {
       const $recipeTable = $(element);
 
       // 각 레시피의 메타데이터 추출
+      let book = '';
+      let liquor = '';
+      let $links: ReturnType<typeof $> | null = null;
+      
       const $titleRow = $recipeTable.find('.tr_rcp_title').first();
-      if ($titleRow.length === 0) {
-        return;
+      if ($titleRow.length > 0) {
+        // 링크에서 추출 시도
+        $links = $titleRow.find('a');
+        if ($links.length >= 2) {
+          book = $links.eq(0).text().trim();
+          liquor = $links.eq(1).text().trim();
+        } else if ($links.length === 1) {
+          // 링크가 하나만 있는 경우 (liq만 제공했을 때)
+          liquor = $links.eq(0).text().trim();
+          // 텍스트에서 book 추출 시도
+          const titleText = $titleRow.find('td').text().trim();
+          const [parsedBook, parsedLiquor] = this.parseTitle(titleText);
+          if (parsedBook) book = parsedBook;
+          if (parsedLiquor) liquor = parsedLiquor || liquor;
+        } else {
+          // 텍스트에서 추출
+          const titleText = $titleRow.find('td').text().trim();
+          [book, liquor] = this.parseTitle(titleText);
+        }
+      } else {
+        // 대체 방법: 테이블의 첫 번째 행에서 제목 찾기
+        const titleText = $recipeTable.find('tr').first().find('td').first().text().trim();
+        [book, liquor] = this.parseTitle(titleText);
       }
-
-      const $links = $titleRow.find('a');
-      if ($links.length < 2) {
-        return;
-      }
-
-      const book = $links.eq(0).text().trim();
-      const liquor = $links.eq(1).text().trim();
 
       if (!book || !liquor) {
         return;
@@ -309,17 +326,19 @@ export class KoreansoolHtmlParser {
 
       // dup 추출 (링크의 href나 target에서 추출)
       let dup = 1;
-      const $liquorLink = $links.eq(1);
-      const href = $liquorLink.attr('href') || '';
-      const dupMatch = href.match(/dup=(\d+)/);
-      if (dupMatch) {
-        dup = parseInt(dupMatch[1], 10);
-      } else {
-        // target 속성에서 추출 시도 (예: '보덕공비망록백하주1')
-        const target = $liquorLink.attr('target') || '';
-        const targetDupMatch = target.match(/(\d+)$/);
-        if (targetDupMatch) {
-          dup = parseInt(targetDupMatch[1], 10);
+      if ($links && $links.length >= 2) {
+        const $liquorLink = $links.eq(1);
+        const href = $liquorLink.attr('href') || '';
+        const dupMatch = href.match(/dup=(\d+)/);
+        if (dupMatch) {
+          dup = parseInt(dupMatch[1], 10);
+        } else {
+          // target 속성에서 추출 시도 (예: '보덕공비망록백하주1')
+          const target = $liquorLink.attr('target') || '';
+          const targetDupMatch = target.match(/(\d+)$/);
+          if (targetDupMatch) {
+            dup = parseInt(targetDupMatch[1], 10);
+          }
         }
       }
 

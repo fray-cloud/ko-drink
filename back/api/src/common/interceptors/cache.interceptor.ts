@@ -76,6 +76,12 @@ export class CacheInterceptor implements NestInterceptor {
   }
 
   private getDefaultTTL(controllerName: string): number {
+    // 개발 환경에서는 1초로 설정
+    const nodeEnv = this.configService.get('NODE_ENV') || 'development';
+    if (nodeEnv === 'development') {
+      return 1;
+    }
+
     const redisConfig = this.configService.get('redis');
     if (controllerName.toLowerCase().includes('koreansool')) {
       return redisConfig.ttl.koreansool;
