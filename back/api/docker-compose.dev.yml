@@ -11,7 +11,13 @@ services:
     env_file:
       - ../../.env
     volumes:
-      - .:/app
-      - /app/node_modules
+      - ./src:/app/src
+      - ./test:/app/test
+      - ./package.json:/app/package.json
+      - ./package-lock.json:/app/package-lock.json
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./tsconfig.build.json:/app/tsconfig.build.json
+      - ./nest-cli.json:/app/nest-cli.json
+      - ./eslint.config.mjs:/app/eslint.config.mjs
     networks:
       - app-network

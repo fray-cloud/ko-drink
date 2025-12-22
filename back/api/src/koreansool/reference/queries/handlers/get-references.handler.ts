@@ -2,6 +2,7 @@ import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
 import { GetReferencesQuery } from '../queries/get-references.query';
 import { KoreansoolApiClient } from '../../../../common/utils/koreansool-api.client';
 import { KoreansoolHtmlParser } from '../../../../common/utils/koreansool-html.parser';
+import { paginate } from '../../../../common/utils/pagination.util';
 
 @QueryHandler(GetReferencesQuery)
 export class GetReferencesHandler implements IQueryHandler<GetReferencesQuery> {
@@ -13,9 +14,6 @@ export class GetReferencesHandler implements IQueryHandler<GetReferencesQuery> {
   async execute(query: GetReferencesQuery) {
     const html = await this.apiClient.getReferences();
     const references = this.htmlParser.parseReferences(html);
-    return {
-      references,
-      count: references.length,
-    };
+    return paginate(references, query.page, query.limit);
   }
 }

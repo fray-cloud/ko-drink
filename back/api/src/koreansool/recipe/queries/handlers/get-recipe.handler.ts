@@ -2,6 +2,7 @@ import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
 import { GetRecipeQuery } from '../queries/get-recipe.query';
 import { KoreansoolApiClient } from '../../../../common/utils/koreansool-api.client';
 import { KoreansoolHtmlParser } from '../../../../common/utils/koreansool-html.parser';
+import { paginate } from '../../../../common/utils/pagination.util';
 
 @QueryHandler(GetRecipeQuery)
 export class GetRecipeHandler implements IQueryHandler<GetRecipeQuery> {
@@ -15,10 +16,12 @@ export class GetRecipeHandler implements IQueryHandler<GetRecipeQuery> {
     const dup = query.dup ?? 1;
     const html = await this.apiClient.getRecipe(query.book, query.liq, dup);
 
-    // book만 있거나 liq만 있으면 모든 레시피 반환
+    // book만 있거나 liq만 있으면 모든 레시피 반환 (페이지네이션 적용)
     if ((query.book && !query.liq) || (!query.book && query.liq)) {
       const allRecipes = this.htmlParser.parseAllRecipes(html);
-      return allRecipes;
+      const page = query.page ?? 1;
+      const limit = query.limit ?? 10;
+      return paginate(allRecipes, page, limit);
     }
 
     // 둘 다 있으면 단일 레시피 반환

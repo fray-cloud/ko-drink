@@ -2,6 +2,7 @@ import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
 import { GetSimilarRecipesQuery } from '../queries/get-similar-recipes.query';
 import { KoreansoolApiClient } from '../../../../common/utils/koreansool-api.client';
 import { KoreansoolHtmlParser } from '../../../../common/utils/koreansool-html.parser';
+import { paginate } from '../../../../common/utils/pagination.util';
 
 @QueryHandler(GetSimilarRecipesQuery)
 export class GetSimilarRecipesHandler implements IQueryHandler<GetSimilarRecipesQuery> {
@@ -17,12 +18,14 @@ export class GetSimilarRecipesHandler implements IQueryHandler<GetSimilarRecipes
       query.dup,
     );
     const results = this.htmlParser.parseSearchResults(html);
+    const paginated = paginate(results, query.page, query.limit);
+    
     return {
       book: query.book,
       liquor: query.liq,
       dup: query.dup,
-      similarRecipes: results,
-      count: results.length,
+      data: paginated.data,
+      meta: paginated.meta,
     };
   }
 }

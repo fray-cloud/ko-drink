@@ -51,10 +51,37 @@ export class KoreansoolHtmlParser {
     const $ = cheerio.load(html);
     const results: SearchResult[] = [];
 
-    $('.table_rcp').each((_, element) => {
+    // .table_rcp 또는 .table_each_rcp 클래스를 가진 테이블 찾기
+    $('.table_rcp, .table_each_rcp').each((_, element) => {
       const $table = $(element);
-      const titleText = $table.find('.tr_rcp_title td').text().trim();
+      
+      // 제목 추출 - 여러 방법 시도
+      let titleText = '';
+      const $titleRow = $table.find('.tr_rcp_title').first();
+      if ($titleRow.length > 0) {
+        // 링크에서 추출 시도
+        const $links = $titleRow.find('a');
+        if ($links.length >= 2) {
+          const book = $links.eq(0).text().trim();
+          const liquor = $links.eq(1).text().trim();
+          if (book && liquor) {
+            titleText = `${book} - ${liquor}`;
+          }
+        } else {
+          // 텍스트에서 추출
+          titleText = $titleRow.find('td').text().trim();
+        }
+      } else {
+        // 대체 방법: 테이블의 첫 번째 행에서 제목 찾기
+        titleText = $table.find('tr').first().find('td').first().text().trim();
+      }
+
       const [book, liquor] = this.parseTitle(titleText);
+
+      // book과 liquor가 없으면 건너뛰기
+      if (!book || !liquor) {
+        return;
+      }
 
       const recipe: RecipeStep[] = [];
       // 헤더 행에서 필드명 추출
@@ -81,9 +108,7 @@ export class KoreansoolHtmlParser {
         }
       });
 
-      if (book && liquor) {
-        results.push({ book, liquor, recipe });
-      }
+      results.push({ book, liquor, recipe });
     });
 
     return results;
@@ -344,11 +369,40 @@ export class KoreansoolHtmlParser {
   }
 
   private parseTitle(title: string): [string, string] {
+    if (!title) {
+      return ['', ''];
+    }
+    
+    // ' - '로 분리 시도
     const parts = title.split(' - ');
     if (parts.length === 2) {
       return [parts[0].trim(), parts[1].trim()];
     }
-    return ['', title.trim()];
+    
+    // ' -' 또는 '- '로 분리 시도
+    const parts2 = title.split(/[\s-]+/);
+    if (parts2.length >= 2) {
+      // 첫 번째와 나머지를 합쳐서 반환
+      const first = parts2[0].trim();
+      const rest = parts2.slice(1).join(' ').trim();
+      if (first && rest) {
+        return [first, rest];
+      }
+    }
+    
+    // 분리할 수 없으면 첫 번째를 book으로, 나머지를 liquor로
+    const trimmed = title.trim();
+    if (trimmed) {
+      // 공백이나 특수문자로 분리 시도
+      const match = trimmed.match(/^(.+?)\s+(.+)$/);
+      if (match) {
+        return [match[1].trim(), match[2].trim()];
+      }
+      // 분리할 수 없으면 전체를 liquor로
+      return ['', trimmed];
+    }
+    
+    return ['', ''];
   }
 
   private parseRecipeRow(cells: string[], fieldNames: string[]): RecipeStep {

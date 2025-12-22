@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Query, UseInterceptors, DefaultValuePipe, ParseIntPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { QueryBus } from '@nestjs/cqrs';
 import { GetSimilarRecipesQuery } from './queries/queries/get-similar-recipes.query';
@@ -6,6 +6,7 @@ import {
   CacheInterceptor,
   CacheKey,
 } from '../../common/interceptors/cache.interceptor';
+import { SimilarRecipesResponseDto } from './dto/similar-recipes-response.dto';
 
 @ApiTags('Koreansool - 분석')
 @Controller('koreansool/analysis')
@@ -24,16 +25,42 @@ export class AnalysisController {
     type: Number,
     example: 1,
   })
-  @ApiResponse({ status: 200, description: '유사 레시피 목록' })
+  @ApiQuery({
+    name: 'page',
+    description: '페이지 번호',
+    required: false,
+    type: Number,
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    description: '페이지당 항목 수',
+    required: false,
+    type: Number,
+    example: 10,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '유사 레시피 목록',
+    type: SimilarRecipesResponseDto,
+  })
   @UseInterceptors(CacheInterceptor)
   @CacheKey('similar')
   async getSimilarRecipes(
     @Query('book') book: string,
     @Query('liq') liq: string,
     @Query('dup') dup: number,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
   ) {
     return this.queryBus.execute(
-      new GetSimilarRecipesQuery(book, liq, parseInt(dup.toString(), 10)),
+      new GetSimilarRecipesQuery(
+        book,
+        liq,
+        parseInt(dup.toString(), 10),
+        page,
+        limit,
+      ),
     );
   }
 }

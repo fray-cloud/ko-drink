@@ -4,6 +4,8 @@ import {
   Query,
   UseInterceptors,
   BadRequestException,
+  DefaultValuePipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { QueryBus } from '@nestjs/cqrs';
@@ -12,6 +14,7 @@ import {
   CacheInterceptor,
   CacheKey,
 } from '../../common/interceptors/cache.interceptor';
+import { RecipeResponseDto, RecipeListResponseDto } from './dto/recipe-response.dto';
 
 @ApiTags('Koreansool - 레시피')
 @Controller('koreansool/recipes')
@@ -48,10 +51,30 @@ export class RecipeController {
     type: Number,
     example: 1,
   })
+  @ApiQuery({
+    name: 'page',
+    description: '페이지 번호 (book만 또는 liq만 제공할 때만 사용)',
+    required: false,
+    type: Number,
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    description: '페이지당 항목 수 (book만 또는 liq만 제공할 때만 사용)',
+    required: false,
+    type: Number,
+    example: 10,
+  })
   @ApiResponse({
     status: 200,
     description:
       '레시피 정보. book과 liq를 모두 제공하면 단일 레시피 객체를 반환하고, 하나만 제공하면 레시피 배열을 반환합니다.',
+    type: RecipeResponseDto,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '레시피 목록 (book만 또는 liq만 제공할 때)',
+    type: RecipeListResponseDto,
   })
   @ApiResponse({
     status: 400,
@@ -63,6 +86,8 @@ export class RecipeController {
     @Query('book') book?: string,
     @Query('liq') liq?: string,
     @Query('dup') dup?: number,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page?: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit?: number,
   ) {
     // book과 liq 중 하나 이상은 필수
     if (!book && !liq) {
@@ -70,7 +95,13 @@ export class RecipeController {
     }
 
     return this.queryBus.execute(
-      new GetRecipeQuery(book, liq, dup ? parseInt(dup.toString(), 10) : 1),
+      new GetRecipeQuery(
+        book,
+        liq,
+        dup ? parseInt(dup.toString(), 10) : 1,
+        page,
+        limit,
+      ),
     );
   }
 }

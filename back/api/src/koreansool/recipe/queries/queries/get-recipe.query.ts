@@ -3,5 +3,7 @@ export class GetRecipeQuery {
     public readonly book?: string,
     public readonly liq?: string,
     public readonly dup?: number,
+    public readonly page?: number,
+    public readonly limit?: number,
   ) {}
 }
