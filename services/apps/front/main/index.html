@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
   <head>
     <meta charset="utf-8" />
     <title>Main</title>
@@ -7,6 +7,13 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <!-- 옛한글 지원 폰트: 함초롬바탕 (로컬 폰트 파일 사용) -->
+    <!-- 폰트 파일은 public/fonts/ 디렉토리에 배치 -->
+    <link rel="preload" href="/fonts/HANBatang.woff" as="font" type="font/woff" crossorigin />
+    <!-- Noto Serif KR을 fallback으로 사용 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>

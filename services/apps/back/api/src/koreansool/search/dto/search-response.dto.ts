@@ -14,6 +14,49 @@ export class SearchResultItemDto {
     type: [RecipeStepDto],
   })
   recipe: RecipeStepDto[];
+
+  @ApiProperty({
+    description: '술 이름 한자',
+    required: false,
+    example: '甘香酒',
+  })
+  liquorHanja?: string;
+
+  @ApiProperty({
+    description: '설명',
+    required: false,
+    example: '달고 향기로운 술',
+  })
+  description?: string;
+
+  @ApiProperty({
+    description: '분류 태그',
+    required: false,
+    type: [String],
+    example: ['발효주', '순곡주', '단양주', '느림'],
+  })
+  tags?: string[];
+
+  @ApiProperty({
+    description: '별칭',
+    required: false,
+    example: '이화주',
+  })
+  alias?: string;
+
+  @ApiProperty({
+    description: '유사 문헌',
+    required: false,
+    example: '잡초',
+  })
+  similarBook?: string;
+
+  @ApiProperty({
+    description: '원문 텍스트',
+    required: false,
+    example: '원문 내용...',
+  })
+  originalText?: string;
 }
 
 export class SearchResponseDto {

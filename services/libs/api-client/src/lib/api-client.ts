@@ -68,7 +68,7 @@ export class ApiClient {
 
   // Auth APIs
   async register(data: { email: string; name: string; password: string }): Promise<any> {
-    const response = await this.client.post('/api/auth/register', data);
+    const response = await this.client.post('/auth/register', data);
     if (response.data.access_token) {
       this.setToken(response.data.access_token);
     }
@@ -76,7 +76,7 @@ export class ApiClient {
   }
 
   async login(data: { email: string; password: string }): Promise<any> {
-    const response = await this.client.post('/api/auth/login', data);
+    const response = await this.client.post('/auth/login', data);
     if (response.data.access_token) {
       this.setToken(response.data.access_token);
     }
@@ -89,23 +89,23 @@ export class ApiClient {
 
   // User APIs
   async getCurrentUser(): Promise<any> {
-    const response = await this.client.get('/api/users/me');
+    const response = await this.client.get('/users/me');
     return response.data;
   }
 
   async updateUser(data: { name?: string; email?: string }): Promise<any> {
-    const response = await this.client.patch('/api/users/me', data);
+    const response = await this.client.patch('/users/me', data);
     return response.data;
   }
 
   async updatePassword(data: { currentPassword: string; newPassword: string }): Promise<any> {
-    const response = await this.client.patch('/api/users/me/password', data);
+    const response = await this.client.patch('/users/me/password', data);
     return response.data;
   }
 
   // Koreansool APIs
   async search(searchText: string, options?: PaginationOptions): Promise<any> {
-    const response = await this.client.get('/api/koreansool/search', {
+    const response = await this.client.get('/koreansool/search', {
       params: {
         q: searchText,
         ...options,
@@ -115,28 +115,28 @@ export class ApiClient {
   }
 
   async getBooks(options?: PaginationOptions): Promise<any> {
-    const response = await this.client.get('/api/koreansool/books', {
+    const response = await this.client.get('/koreansool/books', {
       params: options,
     });
     return response.data;
   }
 
-  async getRecipes(options?: { book?: string; liq?: string; page?: number; limit?: number }): Promise<any> {
-    const response = await this.client.get('/api/koreansool/recipes', {
+  async getRecipes(options?: { book?: string; liq?: string; dup?: number; page?: number; limit?: number }): Promise<any> {
+    const response = await this.client.get('/koreansool/recipes', {
       params: options,
     });
     return response.data;
   }
 
   async getReferences(options?: PaginationOptions): Promise<any> {
-    const response = await this.client.get('/api/koreansool/references', {
+    const response = await this.client.get('/koreansool/references', {
       params: options,
     });
     return response.data;
   }
 
   async getImage(book: string, liq: string, dup?: number): Promise<Blob> {
-    const response = await this.client.get('/api/koreansool/images', {
+    const response = await this.client.get('/koreansool/images', {
       params: { book, liq, dup },
       responseType: 'blob',
     });
@@ -144,7 +144,7 @@ export class ApiClient {
   }
 
   async getAnalysis(book: string, liq: string, dup: number): Promise<any> {
-    const response = await this.client.get('/api/koreansool/analysis', {
+    const response = await this.client.get('/koreansool/analysis', {
       params: { book, liq, dup },
     });
     return response.data;

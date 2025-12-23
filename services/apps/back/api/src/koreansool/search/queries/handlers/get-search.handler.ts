@@ -30,8 +30,16 @@ export class GetSearchHandler implements IQueryHandler<GetSearchQuery> {
       const htmlPreview = html.substring(0, 500);
       this.logger.log(`[Search] HTML preview: ${htmlPreview}...`);
       
-      const results = this.htmlParser.parseSearchResults(html);
+      let results = this.htmlParser.parseSearchResults(html);
       this.logger.log(`[Search] Parsed results count: ${results.length}`);
+      
+      // 검색 결과에서는 원문 텍스트를 가져오지 않음 (성능 최적화)
+      // 원문 텍스트는 상세 페이지에서만 필요하므로, 검색 결과에서는 제외
+      // 임시 필드 제거
+      results = results.map((result) => {
+        const { _originalLinkInfo, ...rest } = result;
+        return rest;
+      });
       
       if (results.length === 0) {
         this.logger.warn(`[Search] No results found. HTML structure might be different.`);

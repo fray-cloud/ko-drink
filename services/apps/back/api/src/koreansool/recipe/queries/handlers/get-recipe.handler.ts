@@ -88,12 +88,33 @@ export class GetRecipeHandler implements IQueryHandler<GetRecipeQuery> {
       this.logger.log(`[Recipe] Parsing single recipe`);
       const recipe = this.htmlParser.parseRecipe(html);
       const metadata = this.htmlParser.parseRecipeMetadata(html);
+      const metaInfo = this.htmlParser.parseRecipeMetaInfo(html);
+      
+      // 상세 페이지에서는 원문 텍스트도 가져오기
+      // 이미 가져온 HTML을 재사용하여 성능 최적화
+      let originalText: string | undefined;
+      try {
+        originalText = await this.apiClient.getOriginalText(
+          metadata?.book || query.book || '',
+          metadata?.liquor || query.liq || '',
+          dup,
+          html, // 이미 가져온 HTML 재사용
+        );
+        if (!originalText || originalText.length === 0) {
+          originalText = undefined;
+        }
+      } catch (error) {
+        this.logger.warn(`[Recipe] Failed to fetch original text: ${error.message}`);
+        originalText = undefined;
+      }
 
       return {
         book: metadata?.book || query.book || undefined,
         liquor: metadata?.liquor || query.liq || undefined,
         dup,
         recipe,
+        ...metaInfo,
+        originalText,
       };
     } catch (error) {
       this.logger.error(`[Recipe] Error: ${error.message}`, error.stack);

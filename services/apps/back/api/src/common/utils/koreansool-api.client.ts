@@ -13,7 +13,7 @@ export class KoreansoolApiClient {
     this.baseUrl = koreansoolConfig.baseUrl;
     this.client = axios.create({
       baseURL: this.baseUrl,
-      timeout: 10000,
+      timeout: 30000, // timeout을 30초로 증가 (원문 텍스트 가져오기 시간 고려)
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
@@ -139,6 +139,66 @@ export class KoreansoolApiClient {
         throw new Error(`Failed to fetch similar recipes: ${error.message}`);
       }
       throw error;
+    }
+  }
+
+  async getOriginalText(book: string, liq: string, dup?: number, html?: string): Promise<string> {
+    try {
+      // 원문 텍스트는 JavaScript ToggleText 함수로 토글되는 요소에 포함되어 있음
+      // ToggleText(this, idx_rcp)에서 idx_rcp는 레시피 번호 (보통 1)
+      // id_text_org_1, id_text_trs_1 같은 ID를 가진 요소를 찾아야 함
+      // HTML이 제공되지 않으면 getRecipe를 호출
+      const recipeHtml = html || await this.getRecipe(book, liq, dup);
+      const $ = cheerio.load(recipeHtml);
+      
+      // 1. id_text_org_1 ID를 가진 요소 찾기 (원문 텍스트)
+      // ToggleText 함수가 이 요소를 display: table-row로 토글함
+      let originalText = $('#id_text_org_1').text().trim();
+      
+      if (originalText && originalText.length > 5) {
+        return originalText;
+      }
+      
+      // 2. 다른 번호의 원문 텍스트 찾기 (idx_rcp가 1이 아닐 수 있음)
+      for (let i = 1; i <= 10; i++) {
+        const text = $(`#id_text_org_${i}`).text().trim();
+        if (text && text.length > 5) {
+          originalText = text;
+          break;
+        }
+      }
+      
+      if (originalText && originalText.length > 5) {
+        return originalText;
+      }
+      
+      // 3. display:none으로 숨겨진 원문 텍스트 찾기
+      $('tr, div, span').each((_, el) => {
+        const $el = $(el);
+        const id = $el.attr('id') || '';
+        const style = $el.attr('style') || '';
+        
+        // id_text_org_ 또는 id_text_trs_ 패턴이고 숨겨진 요소
+        if ((id.includes('id_text_org_') || id.includes('id_text_trs_')) && 
+            (style.includes('display:none') || style.includes('display: none'))) {
+          const text = $el.text().trim();
+          if (text && text.length > 5) {
+            originalText = text;
+            return false; // break
+          }
+        }
+      });
+      
+      // 4. 원문 텍스트가 HTML에 없을 수 있음 (JavaScript로 동적 로드)
+      // 이 경우 빈 문자열 반환 (실제로는 브라우저에서만 접근 가능)
+      return originalText || '';
+    } catch (error) {
+      if (error instanceof AxiosError) {
+        // 원문 텍스트를 가져올 수 없는 경우 에러를 던지지 않고 빈 문자열 반환
+        // (이것은 정상적인 경우일 수 있음)
+        return '';
+      }
+      return '';
     }
   }
 }

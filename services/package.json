@@ -88,6 +88,7 @@
     "@nestjs/platform-express": "^11.1.10",
     "@nestjs/swagger": "^11.2.3",
     "@nestjs/typeorm": "^11.0.0",
+    "@tanstack/react-query": "^5.90.12",
     "axios": "^1.13.2",
     "bcrypt": "^6.0.0",
     "cheerio": "^1.1.2",
@@ -111,8 +112,10 @@
     "react-native-svg": "15.12.1",
     "react-native-svg-transformer": "~1.5.1",
     "react-native-web": "~0.21.0",
+    "react-router-dom": "^7.11.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "typeorm": "^0.3.28"
+    "typeorm": "^0.3.28",
+    "zustand": "^5.0.9"
   }
 }

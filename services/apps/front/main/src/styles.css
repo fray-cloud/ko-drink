@@ -1,2 +1,19 @@
 /* You can add global styles to this file, and also import other style files */
 @import "tailwindcss";
+
+/* 옛한글 지원 폰트: 함초롬바탕 (실제 koreansool.kr 사이트와 동일) */
+/* 로컬 폰트 파일 사용 (public/fonts/ 디렉토리에 배치) */
+@font-face {
+  font-family: '함초롬바탕';
+  src: url('/fonts/HANBatang.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 원문 텍스트 스타일 (실제 사이트와 동일) */
+.original-text {
+  font-family: "함초롬바탕", "HANBatang", "Noto Serif KR", serif;
+  background-color: #efefe5;
+  text-align: left;
+}
