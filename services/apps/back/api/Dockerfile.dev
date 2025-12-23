@@ -1,0 +1,24 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache libc6-compat gcompat libstdc++
+
+# Install dependencies
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Copy workspace files
+COPY nx.json ./
+COPY tsconfig.base.json ./
+
+# Copy app and libs
+COPY apps/back/api ./apps/back/api
+COPY libs ./libs
+
+EXPOSE 4000
+# EXPOSE 9229  # 디버그 모드 사용 시 주석 해제 (nest start --debug --watch)
+
+# Development mode: NestJS watch mode
+CMD ["npx", "nx", "serve", "api", "--configuration", "development"]
+

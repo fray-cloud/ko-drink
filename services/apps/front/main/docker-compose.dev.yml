@@ -1,0 +1,23 @@
+services:
+  main:
+    build:
+      context: ../../..
+      dockerfile: apps/front/main/Dockerfile.dev
+    container_name: main
+    ports:
+      - "${MAIN_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=development
+      - TZ=Asia/Seoul
+    env_file:
+      - ../../../../.env
+    volumes:
+      - ./src:/app/apps/front/main/src
+      - libs_data:/app/libs
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+

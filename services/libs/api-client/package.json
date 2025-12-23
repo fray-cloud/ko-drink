@@ -1,0 +1,13 @@
+{
+  "name": "@ko-drink/api-client",
+  "version": "0.0.1",
+  "private": true,
+  "type": "commonjs",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "dependencies": {
+    "@ko-drink/shared": "*",
+    "axios": "^1.13.2",
+    "tslib": "^2.3.0"
+  }
+}

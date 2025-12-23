@@ -1,10 +1,12 @@
 include:
-  - path: front/docker-compose.dev.yml
-    project_directory: ./front
+  # - path: front/docker-compose.dev.yml
+  #   project_directory: ./front
   - path: infra/docker-compose.dev.yml
     project_directory: ./infra
-  - path: back/docker-compose.dev.yml
-    project_directory: ./back
+  # - path: back/docker-compose.dev.yml
+  #   project_directory: ./back
+  - path: services/docker-compose.dev.yml
+    project_directory: ./services
 
 networks:
   app-network:

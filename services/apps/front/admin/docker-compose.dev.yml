@@ -1,0 +1,22 @@
+services:
+  admin:
+    build:
+      context: ../../..
+      dockerfile: apps/front/admin/Dockerfile.dev
+    container_name: admin
+    ports:
+      - "${ADMIN_PORT:-3001}:3001"
+    environment:
+      - NODE_ENV=development
+      - TZ=Asia/Seoul
+    env_file:
+      - ../../../../.env
+    volumes:
+      - ./src:/app/apps/front/admin/src
+      - libs_data:/app/libs
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

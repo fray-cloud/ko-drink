@@ -1,0 +1,21 @@
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/back/api/Dockerfile
+    container_name: api
+    expose:
+      - ${API_PORT:-4000}
+    environment:
+      - NODE_ENV=production
+      - TZ=Asia/Seoul
+    env_file:
+      - ../../../../.env
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge
+

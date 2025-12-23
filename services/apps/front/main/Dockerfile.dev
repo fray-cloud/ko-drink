@@ -1,0 +1,20 @@
+FROM node:20
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Copy workspace files
+COPY nx.json ./
+COPY tsconfig.base.json ./
+
+# Copy app and libs
+COPY apps/front/main ./apps/front/main
+COPY libs ./libs
+
+EXPOSE 3000
+
+CMD ["npx", "nx", "serve", "main", "--host", "0.0.0.0"]
+

@@ -1,0 +1,15 @@
+{
+  "name": "@ko-drink/shared",
+  "version": "0.0.1",
+  "private": true,
+  "type": "commonjs",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0"
+  }
+}

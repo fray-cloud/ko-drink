@@ -1,0 +1,22 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache libc6-compat gcompat libstdc++
+
+# Install dependencies
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Copy workspace files
+COPY nx.json ./
+COPY tsconfig.base.json ./
+
+# Copy app and libs
+COPY apps/front/admin ./apps/front/admin
+COPY libs ./libs
+
+EXPOSE 3001
+
+CMD ["npx", "nx", "serve", "admin", "--host", "0.0.0.0"]
+

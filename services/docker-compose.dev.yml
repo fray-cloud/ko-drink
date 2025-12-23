@@ -1,0 +1,18 @@
+include:
+  - path: apps/back/api/docker-compose.dev.yml
+    project_directory: ./apps/back/api
+  - path: apps/front/main/docker-compose.dev.yml
+    project_directory: ./apps/front/main
+  - path: apps/front/admin/docker-compose.dev.yml
+    project_directory: ./apps/front/admin
+  - path: apps/front/mobile/docker-compose.dev.yml
+    project_directory: ./apps/front/mobile
+
+volumes:
+  libs_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./libs
+      o: bind
+  

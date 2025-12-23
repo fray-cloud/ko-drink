@@ -1,3 +1,0 @@
-include:
-  - path: api/docker-compose.yml
-    project_directory: ./api

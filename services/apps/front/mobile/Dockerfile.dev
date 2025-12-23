@@ -1,0 +1,21 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Copy workspace files
+COPY nx.json ./
+COPY tsconfig.base.json ./
+COPY babel.config.json ./
+
+# Copy app and libs
+COPY apps/front/mobile ./apps/front/mobile
+COPY libs ./libs
+
+EXPOSE 8081 19000 19001
+
+CMD ["npx", "nx", "serve", "mobile", "--host", "tunnel"]
+
