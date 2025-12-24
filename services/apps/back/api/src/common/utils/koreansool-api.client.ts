@@ -59,29 +59,40 @@ export class KoreansoolApiClient {
 
   async getRecipe(book?: string, liq?: string, dup?: number): Promise<string> {
     try {
-      // 모든 요청을 POST로 보냄 (method=simple)
-      const formData = new URLSearchParams();
-      formData.append('method', 'simple');
-      
-      // book이 없으면 @, 있으면 실제 값
-      formData.append('book', book || '@');
-      
-      // liq가 없으면 @, 있으면 실제 값
-      formData.append('liq', liq || '@');
-      
-      // dup가 없으면 @, 있으면 실제 값 (단, book과 liq가 모두 있을 때만 dup 사용)
-      if (book && liq) {
-        formData.append('dup', dup ? dup.toString() : '@');
+      // book만 제공할 때는 GET 요청 사용
+      // liq만 제공하거나 book과 liq 모두 제공할 때는 POST 요청 사용 (method=simple)
+      if (book && !liq) {
+        // GET 요청으로 변경
+        const params = new URLSearchParams();
+        params.append('book', book);
+        
+        const response = await this.client.get(`/recipe.php?${params.toString()}`);
+        return response.data;
       } else {
-        formData.append('dup', '@');
+        // liq만 제공하거나 book과 liq 모두 제공할 때는 POST 요청 (method=simple)
+        const formData = new URLSearchParams();
+        formData.append('method', 'simple');
+        
+        // book이 없으면 @, 있으면 실제 값
+        formData.append('book', book || '@');
+        
+        // liq가 없으면 @, 있으면 실제 값
+        formData.append('liq', liq || '@');
+        
+        // dup가 없으면 @, 있으면 실제 값
+        if (book && liq) {
+          formData.append('dup', dup ? dup.toString() : '@');
+        } else {
+          formData.append('dup', '@');
+        }
+        
+        const response = await this.client.post('/recipe.php', formData.toString(), {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        });
+        return response.data;
       }
-      
-      const response = await this.client.post('/recipe.php', formData.toString(), {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      });
-      return response.data;
     } catch (error) {
       if (error instanceof AxiosError) {
         throw new Error(`Failed to fetch recipe: ${error.message}`);

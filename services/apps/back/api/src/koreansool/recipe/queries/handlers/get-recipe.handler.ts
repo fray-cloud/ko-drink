@@ -17,9 +17,9 @@ export class GetRecipeHandler implements IQueryHandler<GetRecipeQuery> {
 
   async execute(query: GetRecipeQuery) {
     try {
-      // dup가 없으면 기본값 1 사용
-      const dup = query.dup ?? 1;
-      this.logger.log(`[Recipe] Query: book=${query.book}, liq=${query.liq}, dup=${dup}`);
+      // dup가 없으면 undefined로 전달 (API Client에서 @로 처리)
+      const dup = query.dup;
+      this.logger.log(`[Recipe] Query: book=${query.book}, liq=${query.liq}, dup=${dup ?? '@'}`);
       
       const html = await this.apiClient.getRecipe(query.book, query.liq, dup);
       this.logger.log(`[Recipe] HTML received, length: ${html?.length || 0}`);
@@ -27,8 +27,21 @@ export class GetRecipeHandler implements IQueryHandler<GetRecipeQuery> {
       // book만 있거나 liq만 있으면 모든 레시피 반환 (페이지네이션 적용)
       if ((query.book && !query.liq) || (!query.book && query.liq)) {
         this.logger.log(`[Recipe] Parsing all recipes (book only or liq only)`);
+        
+        // HTML 구조 디버깅
+        const $ = cheerio.load(html);
+        const tableEachCount = $('.table_each_rcp').length;
+        const tableRcpCount = $('.table_rcp').length;
+        const allTables = $('table').length;
+        this.logger.log(`[Recipe] HTML structure: .table_each_rcp=${tableEachCount}, .table_rcp=${tableRcpCount}, total tables=${allTables}`);
+        
         let allRecipes = this.htmlParser.parseAllRecipes(html);
         this.logger.log(`[Recipe] Parsed ${allRecipes.length} recipes`);
+        
+        // 파싱된 레시피의 book/liquor 정보 로깅
+        if (allRecipes.length > 0) {
+          this.logger.log(`[Recipe] First recipe: book=${allRecipes[0].book}, liquor=${allRecipes[0].liquor}`);
+        }
         
         // materials가 빈 배열이고 step과 memo가 같은 경우, memo만 반환
         allRecipes = allRecipes.map((recipeInfo) => ({
@@ -146,7 +159,7 @@ export class GetRecipeHandler implements IQueryHandler<GetRecipeQuery> {
       return {
         book: metadata?.book || query.book || undefined,
         liquor: metadata?.liquor || query.liq || undefined,
-        dup,
+        dup: dup ?? 1, // 응답에는 기본값 1 표시
         recipe,
         ...metaInfo,
         originalText,

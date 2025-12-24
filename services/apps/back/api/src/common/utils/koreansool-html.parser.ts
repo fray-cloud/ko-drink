@@ -451,34 +451,63 @@ export class KoreansoolHtmlParser {
       let liquor = '';
       let $links: ReturnType<typeof $> | null = null;
       
-      const $titleRow = $recipeTable.find('.tr_rcp_title').first();
+      // 제목 추출 - parseSearchResults와 동일한 로직 사용
+      let titleText = '';
+      let $titleRow = $recipeTable.find('.tr_rcp_title').first();
       if ($titleRow.length > 0) {
         // 링크에서 추출 시도
         $links = $titleRow.find('a');
         if ($links.length >= 2) {
           book = $links.eq(0).text().trim();
           liquor = $links.eq(1).text().trim();
+          if (book && liquor) {
+            titleText = `${book} - ${liquor}`;
+          }
         } else if ($links.length === 1) {
-          // 링크가 하나만 있는 경우 (liq만 제공했을 때)
-          liquor = $links.eq(0).text().trim();
-          // 텍스트에서 book 추출 시도
-          const titleText = $titleRow.find('td').text().trim();
+          // 링크가 하나만 있는 경우
+          const linkText = $links.eq(0).text().trim();
+          titleText = $titleRow.find('td').text().trim();
+          // parseTitle로 파싱 시도
           const [parsedBook, parsedLiquor] = this.parseTitle(titleText);
-          if (parsedBook) book = parsedBook;
-          if (parsedLiquor) liquor = parsedLiquor || liquor;
+          
+          // 링크 텍스트가 book인지 liquor인지 판단
+          if (parsedBook && linkText === parsedBook) {
+            book = linkText;
+            liquor = parsedLiquor || '';
+          } else if (parsedLiquor && linkText === parsedLiquor) {
+            liquor = linkText;
+            book = parsedBook || '';
+          } else {
+            // 판단이 어려우면 링크 텍스트를 book으로 가정 (book만 제공했을 가능성)
+            book = linkText;
+            liquor = parsedLiquor || '';
+          }
         } else {
           // 텍스트에서 추출
-          const titleText = $titleRow.find('td').text().trim();
+          titleText = $titleRow.find('td').text().trim();
           [book, liquor] = this.parseTitle(titleText);
         }
       } else {
         // 대체 방법: 테이블의 첫 번째 행에서 제목 찾기
-        const titleText = $recipeTable.find('tr').first().find('td').first().text().trim();
+        $titleRow = $recipeTable.find('tr').first();
+        titleText = $titleRow.find('td').first().text().trim();
         [book, liquor] = this.parseTitle(titleText);
       }
 
-      if (!book || !liquor) {
+      // book만 제공했을 때는 liquor가 없어도 허용
+      // liq만 제공했을 때는 book이 없어도 허용
+      // 둘 다 없으면 건너뛰기
+      if (!book && !liquor) {
         return;
+      }
+      
+      // book만 있고 liquor가 없으면 빈 문자열로 설정
+      if (book && !liquor) {
+        liquor = '';
+      }
+      // liq만 있고 book이 없으면 빈 문자열로 설정
+      if (liquor && !book) {
+        book = '';
       }
 
       // dup 추출 (링크의 href나 target에서 추출)
@@ -525,7 +554,7 @@ export class KoreansoolHtmlParser {
         if (cells.length > 0) {
           const recipeStep = this.parseRecipeRow(cells, fieldNames);
           // 빈 레시피 스텝은 제외 (step이 없거나 materials가 비어있는 경우)
-          if (recipeStep.step || recipeStep.materials.length > 0) {
+          if (recipeStep.step || (recipeStep.materials && recipeStep.materials.length > 0)) {
             recipeSteps.push(recipeStep);
           }
         }
@@ -587,9 +616,11 @@ export class KoreansoolHtmlParser {
           originalText = undefined;
         }
 
+        // book만 제공했을 때는 liquor가 없어도 허용 (빈 문자열로 설정)
+        // liq만 제공했을 때는 book이 없어도 허용 (빈 문자열로 설정)
         recipes.push({
-          book,
-          liquor,
+          book: book || '',
+          liquor: liquor || '',
           dup,
           recipe: recipeSteps,
           ...metaInfo,

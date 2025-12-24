@@ -98,7 +98,7 @@ export class RecipeController {
       new GetRecipeQuery(
         book,
         liq,
-        dup ? parseInt(dup.toString(), 10) : 1,
+        dup !== undefined ? parseInt(dup.toString(), 10) : undefined,
         page,
         limit,
       ),
