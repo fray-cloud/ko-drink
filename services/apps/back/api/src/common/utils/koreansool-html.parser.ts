@@ -36,9 +36,9 @@ export interface RecipeMaterial {
 }
 
 export interface RecipeStep {
-  step: string;
+  step?: string;
   day: number;
-  materials: RecipeMaterial[];
+  materials?: RecipeMaterial[];
   memo?: string;
 }
 
@@ -296,7 +296,7 @@ export class KoreansoolHtmlParser {
       if (cells.length > 0) {
         const recipeStep = this.parseRecipeRow(cells, fieldNames);
         // 빈 레시피 스텝은 제외 (step이 없거나 materials가 비어있는 경우)
-        if (recipeStep.step || recipeStep.materials.length > 0) {
+        if (recipeStep.step || (recipeStep.materials && recipeStep.materials.length > 0)) {
           recipe.push(recipeStep);
         }
       }

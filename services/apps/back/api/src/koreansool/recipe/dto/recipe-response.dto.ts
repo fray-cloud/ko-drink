@@ -10,8 +10,8 @@ export class RecipeMaterialDto {
 }
 
 export class RecipeStepDto {
-  @ApiProperty({ description: '단계 설명', example: '쌀을 씻어서 담근다' })
-  step: string;
+  @ApiProperty({ description: '단계 설명', example: '쌀을 씻어서 담근다', required: false })
+  step?: string;
 
   @ApiProperty({ description: '일수', example: 1 })
   day: number;
@@ -19,8 +19,9 @@ export class RecipeStepDto {
   @ApiProperty({
     description: '재료 목록',
     type: [RecipeMaterialDto],
+    required: false,
   })
-  materials: RecipeMaterialDto[];
+  materials?: RecipeMaterialDto[];
 
   @ApiProperty({
     description: '메모',

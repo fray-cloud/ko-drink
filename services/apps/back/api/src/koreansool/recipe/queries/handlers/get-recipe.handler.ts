@@ -27,8 +27,27 @@ export class GetRecipeHandler implements IQueryHandler<GetRecipeQuery> {
       // book만 있거나 liq만 있으면 모든 레시피 반환 (페이지네이션 적용)
       if ((query.book && !query.liq) || (!query.book && query.liq)) {
         this.logger.log(`[Recipe] Parsing all recipes (book only or liq only)`);
-        const allRecipes = this.htmlParser.parseAllRecipes(html);
+        let allRecipes = this.htmlParser.parseAllRecipes(html);
         this.logger.log(`[Recipe] Parsed ${allRecipes.length} recipes`);
+        
+        // materials가 빈 배열이고 step과 memo가 같은 경우, memo만 반환
+        allRecipes = allRecipes.map((recipeInfo) => ({
+          ...recipeInfo,
+          recipe: recipeInfo.recipe.map((step) => {
+            if (
+              step.materials.length === 0 &&
+              step.step &&
+              step.memo &&
+              step.step.trim() === step.memo.trim()
+            ) {
+              return {
+                day: step.day,
+                memo: step.memo,
+              };
+            }
+            return step;
+          }),
+        }));
         
         if (allRecipes.length === 0) {
           // HTML 구조 확인
@@ -86,9 +105,25 @@ export class GetRecipeHandler implements IQueryHandler<GetRecipeQuery> {
 
       // 둘 다 있으면 단일 레시피 반환
       this.logger.log(`[Recipe] Parsing single recipe`);
-      const recipe = this.htmlParser.parseRecipe(html);
+      let recipe = this.htmlParser.parseRecipe(html);
       const metadata = this.htmlParser.parseRecipeMetadata(html);
       const metaInfo = this.htmlParser.parseRecipeMetaInfo(html);
+      
+      // materials가 빈 배열이고 step과 memo가 같은 경우, memo만 반환
+      recipe = recipe.map((step) => {
+        if (
+          step.materials.length === 0 &&
+          step.step &&
+          step.memo &&
+          step.step.trim() === step.memo.trim()
+        ) {
+          return {
+            day: step.day,
+            memo: step.memo,
+          };
+        }
+        return step;
+      });
       
       // 상세 페이지에서는 원문 텍스트도 가져오기
       // 이미 가져온 HTML을 재사용하여 성능 최적화

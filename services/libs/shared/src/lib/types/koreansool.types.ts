@@ -31,9 +31,9 @@ export interface RecipeMaterial {
 }
 
 export interface RecipeStep {
-  step: string;
+  step?: string;
   day: number;
-  materials: RecipeMaterial[];
+  materials?: RecipeMaterial[];
   memo?: string;
 }
 

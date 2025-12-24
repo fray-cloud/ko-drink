@@ -41,6 +41,19 @@ export class GetSearchHandler implements IQueryHandler<GetSearchQuery> {
         return rest;
       });
       
+      // 중복 제거: book과 liquor가 같은 항목 중 첫 번째만 유지
+      const seen = new Map<string, number>();
+      results = results.filter((result, index) => {
+        const key = `${result.book}|${result.liquor}`;
+        if (seen.has(key)) {
+          this.logger.log(`[Search] Removing duplicate: ${result.book} - ${result.liquor} (index ${index}, first seen at ${seen.get(key)})`);
+          return false;
+        }
+        seen.set(key, index);
+        return true;
+      });
+      this.logger.log(`[Search] After deduplication: ${results.length} results`);
+      
       if (results.length === 0) {
         this.logger.warn(`[Search] No results found. HTML structure might be different.`);
         // HTML에서 테이블이 있는지 확인
