@@ -130,7 +130,7 @@ export function RecipeDetailView({ book, liquor, dup }: RecipeDetailViewProps) {
                 )}
                 {step.day !== undefined && step.day !== null && Number(step.day) > 0 && (
                   <span className="text-sm text-gray-500 bg-white px-2 py-1 rounded">
-                    {step.day}일
+                    {step.day}일차
                   </span>
                 )}
               </div>

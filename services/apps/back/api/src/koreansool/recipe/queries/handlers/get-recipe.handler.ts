@@ -62,6 +62,19 @@ export class GetRecipeHandler implements IQueryHandler<GetRecipeQuery> {
           }),
         }));
         
+        // 중복 제거: book과 liquor가 같은 항목 중 첫 번째만 유지
+        const seen = new Map<string, number>();
+        allRecipes = allRecipes.filter((recipeInfo, index) => {
+          const key = `${recipeInfo.book}|${recipeInfo.liquor}`;
+          if (seen.has(key)) {
+            this.logger.log(`[Recipe] Removing duplicate: ${recipeInfo.book} - ${recipeInfo.liquor} (index ${index}, first seen at ${seen.get(key)})`);
+            return false;
+          }
+          seen.set(key, index);
+          return true;
+        });
+        this.logger.log(`[Recipe] After deduplication: ${allRecipes.length} recipes`);
+        
         if (allRecipes.length === 0) {
           // HTML 구조 확인
           const $ = cheerio.load(html);
