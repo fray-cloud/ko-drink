@@ -13,7 +13,7 @@ export function DetailPage() {
   const referenceId = searchParams.get('id');
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-4xl mx-auto px-4 py-8">
         {type === 'recipe' && book && liquor && (
           <RecipeDetailView
@@ -27,7 +27,7 @@ export function DetailPage() {
           <ReferenceDetailView referenceId={referenceId} />
         )}
         {!type && (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
             잘못된 요청입니다. 타입을 지정해주세요.
           </div>
         )}

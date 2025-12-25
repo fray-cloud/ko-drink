@@ -1,4 +1,5 @@
 import { useRecipeDetailService } from '../hooks/use-recipe.service';
+import { useThemeStore } from '../../common/hooks/store/use-theme.store';
 import type { RecipeStep } from '@ko-drink/shared';
 
 interface RecipeDetailViewProps {
@@ -55,26 +56,28 @@ const PROCESSING_METHODS: Record<string, { category: string; description: string
 
 export function RecipeDetailView({ book, liquor, dup }: RecipeDetailViewProps) {
   const { recipe, isLoading, error } = useRecipeDetailService(book, liquor, dup);
+  const { getEffectiveTheme } = useThemeStore();
+  const isDark = getEffectiveTheme() === 'dark';
 
   if (isLoading) {
-    return <div className="text-center py-8">로딩 중...</div>;
+    return <div className="text-center py-8 text-gray-700 dark:text-gray-300">로딩 중...</div>;
   }
 
   if (error) {
-    return <div className="text-center py-8 text-red-500">오류가 발생했습니다.</div>;
+    return <div className="text-center py-8 text-red-500 dark:text-red-400">오류가 발생했습니다.</div>;
   }
 
   if (!recipe) {
-    return <div className="text-center py-8">레시피를 찾을 수 없습니다.</div>;
+    return <div className="text-center py-8 text-gray-700 dark:text-gray-300">레시피를 찾을 수 없습니다.</div>;
   }
 
   return (
     <div className="space-y-6">
       {/* 기본 정보 */}
-      <div className="border-b pb-4">
-        <h1 className="text-3xl font-bold">{recipe.liquor}</h1>
+      <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{recipe.liquor}</h1>
         {recipe.liquorHanja && (
-          <p className="text-xl text-gray-700 mt-1">({recipe.liquorHanja})</p>
+          <p className="text-xl text-gray-700 dark:text-gray-300 mt-1">({recipe.liquorHanja})</p>
         )}
       </div>
 
@@ -82,19 +85,19 @@ export function RecipeDetailView({ book, liquor, dup }: RecipeDetailViewProps) {
       <div className="space-y-3">
         {recipe.description && (
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-1">설명</h3>
-            <p className="text-gray-800">{recipe.description}</p>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">설명</h3>
+            <p className="text-gray-800 dark:text-gray-200">{recipe.description}</p>
           </div>
         )}
 
         {recipe.tags && recipe.tags.length > 0 && (
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">분류</h3>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">분류</h3>
             <div className="flex flex-wrap gap-2">
               {recipe.tags.map((tag: string, index: number) => (
                 <span
                   key={index}
-                  className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-full"
+                  className="px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full"
                 >
                   {tag}
                 </span>
@@ -105,15 +108,15 @@ export function RecipeDetailView({ book, liquor, dup }: RecipeDetailViewProps) {
 
         {recipe.alias && (
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-1">별칭</h3>
-            <p className="text-gray-800">{recipe.alias}</p>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">별칭</h3>
+            <p className="text-gray-800 dark:text-gray-200">{recipe.alias}</p>
           </div>
         )}
 
         {recipe.similarBook && (
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-1">유사 문헌</h3>
-            <p className="text-gray-800">《{recipe.similarBook}》</p>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">유사 문헌</h3>
+            <p className="text-gray-800 dark:text-gray-200">《{recipe.similarBook}》</p>
           </div>
         )}
       </div>
@@ -121,61 +124,61 @@ export function RecipeDetailView({ book, liquor, dup }: RecipeDetailViewProps) {
       {/* 레시피 */}
       {recipe.recipe && recipe.recipe.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-2xl font-semibold border-b pb-2">레시피</h2>
+          <h2 className="text-2xl font-semibold border-b border-gray-200 dark:border-gray-700 pb-2 text-gray-900 dark:text-white">레시피</h2>
           {recipe.recipe.map((step: RecipeStep, index: number) => (
-            <div key={index} className="border-l-4 border-blue-500 pl-4 py-3 bg-gray-50 rounded-r">
+            <div key={index} className="border-l-4 border-blue-500 pl-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-r">
               <div className="flex items-center gap-2 mb-2">
                 {step.step && (
-                  <span className="font-semibold text-lg">{step.step}</span>
+                  <span className="font-semibold text-lg text-gray-900 dark:text-white">{step.step || '(빈값)'}</span>
                 )}
                 {step.day !== undefined && step.day !== null && Number(step.day) > 0 && (
-                  <span className="text-sm text-gray-500 bg-white px-2 py-1 rounded">
+                  <span className="text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-700 px-2 py-1 rounded">
                     {step.day}일차
                   </span>
                 )}
               </div>
               {step.materials && step.materials.length > 0 && (
                 <div className="mt-3">
-                  <p className="text-sm font-semibold mb-2 text-gray-700">재료</p>
+                  <p className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">재료</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {step.materials.map((material, matIndex) => {
                       const description = MATERIAL_DESCRIPTIONS[material.materialName];
                       return (
                         <div
                           key={matIndex}
-                          className="bg-white p-3 rounded border border-gray-200 flex flex-col"
+                          className="bg-white dark:bg-gray-700 p-3 rounded border border-gray-200 dark:border-gray-600 flex flex-col"
                         >
                           <div className="flex items-center gap-2">
                             {description ? (
                               <div className="group relative inline-block">
-                                <span className="font-medium text-gray-800 cursor-help underline decoration-dotted decoration-gray-400 hover:decoration-gray-600">
+                                <span className="font-medium text-gray-800 dark:text-gray-200 cursor-help underline decoration-dotted decoration-gray-400 dark:decoration-gray-500 hover:decoration-gray-600 dark:hover:decoration-gray-400">
                                   {material.materialName}
                                 </span>
-                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-50 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl">
+                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-50 w-72 p-3 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg shadow-xl border border-gray-700">
                                   <div className="font-semibold mb-1.5 text-sm">{material.materialName}</div>
-                                  <div className="text-gray-300 whitespace-normal leading-relaxed">
+                                  <div className="text-gray-300 dark:text-gray-400 whitespace-normal leading-relaxed">
                                     {description}
                                   </div>
-                                  <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                                  <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-gray-800"></div>
                                 </div>
                               </div>
                             ) : (
-                              <span className="font-medium text-gray-800">{material.materialName}</span>
+                              <span className="font-medium text-gray-800 dark:text-gray-200">{material.materialName}</span>
                             )}
                           </div>
                           {material.value && (
-                            <div className="mt-1 text-gray-600 text-sm">
+                            <div className="mt-1 text-gray-600 dark:text-gray-300 text-sm">
                               {material.materialName === '가공' && PROCESSING_METHODS[material.value] ? (
                                 <div className="group relative inline-block">
                                   <span className="cursor-help">
                                     {PROCESSING_METHODS[material.value].category} &gt; {material.value}
                                   </span>
-                                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-50 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl">
+                                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-50 w-72 p-3 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg shadow-xl border border-gray-700">
                                     <div className="font-semibold mb-1.5 text-sm">{material.value}</div>
-                                    <div className="text-gray-300 whitespace-normal leading-relaxed">
+                                    <div className="text-gray-300 dark:text-gray-400 whitespace-normal leading-relaxed">
                                       {PROCESSING_METHODS[material.value].description}
                                     </div>
-                                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-gray-800"></div>
                                   </div>
                                 </div>
                               ) : (
@@ -190,9 +193,9 @@ export function RecipeDetailView({ book, liquor, dup }: RecipeDetailViewProps) {
                 </div>
               )}
               {step.memo && (
-                <div className="mt-3 bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded">
-                  <p className="text-sm font-semibold text-yellow-800 mb-1">메모</p>
-                  <p className="text-sm text-yellow-900 whitespace-pre-wrap">{step.memo}</p>
+                <div className="mt-3 bg-yellow-50 dark:bg-yellow-900/30 border-l-4 border-yellow-400 dark:border-yellow-600 p-3 rounded">
+                  <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-200 mb-1">메모</p>
+                  <p className="text-sm text-yellow-900 dark:text-yellow-100 whitespace-pre-wrap">{step.memo}</p>
                 </div>
               )}
             </div>
@@ -202,16 +205,16 @@ export function RecipeDetailView({ book, liquor, dup }: RecipeDetailViewProps) {
 
       {/* 원문 텍스트 */}
       {recipe.originalText && (
-        <div className="space-y-2 border-t pt-4">
-          <h2 className="text-2xl font-semibold">원문</h2>
-          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+        <div className="space-y-2 border-t border-gray-200 dark:border-gray-700 pt-4">
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">원문</h2>
+          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
             <p 
-              className="original-text text-gray-800 whitespace-pre-wrap leading-relaxed"
+              className="original-text text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed"
               style={{ 
                 fontFamily: '"함초롬바탕", "HANBatang", "Noto Serif KR", serif',
                 fontSize: '1.1rem',
                 lineHeight: '1.8',
-                backgroundColor: '#efefe5',
+                backgroundColor: isDark ? '#2d2d2d' : '#efefe5',
               }}
             >
               {recipe.originalText}

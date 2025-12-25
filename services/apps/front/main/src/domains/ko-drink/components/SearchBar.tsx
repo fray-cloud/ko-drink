@@ -105,7 +105,7 @@ export function SearchBar({ initialValue = '' }: SearchBarProps) {
             setShowSuggestions(false);
             setSelectedIndex(-1);
           }}
-          className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">통합</option>
           <option value="book">문헌</option>
@@ -121,25 +121,25 @@ export function SearchBar({ initialValue = '' }: SearchBarProps) {
             onFocus={handleFocus}
             onBlur={handleBlur}
             placeholder="검색어를 입력하세요"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           {showSuggestions && filteredBooks.length > 0 && (
             <div
               ref={suggestionsRef}
-              className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+              className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto"
             >
               {filteredBooks.map((book, index) => (
                 <button
                   key={book.name}
                   type="button"
                   onClick={() => handleBookSelect(book.name)}
-                  className={`w-full text-left px-4 py-2 hover:bg-gray-100 ${
-                    index === selectedIndex ? 'bg-blue-50' : ''
+                  className={`w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                    index === selectedIndex ? 'bg-blue-50 dark:bg-blue-900' : ''
                   }`}
                 >
-                  <div className="font-medium">{book.name}</div>
+                  <div className="font-medium text-gray-900 dark:text-white">{book.name}</div>
                   {book.nameHanja && (
-                    <div className="text-sm text-gray-500">{book.nameHanja}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">{book.nameHanja}</div>
                   )}
                 </button>
               ))}
@@ -148,7 +148,7 @@ export function SearchBar({ initialValue = '' }: SearchBarProps) {
         </div>
         <button
           type="submit"
-          className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+          className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 dark:hover:bg-blue-700"
         >
           검색
         </button>

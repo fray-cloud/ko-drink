@@ -73,11 +73,11 @@ export function SearchResultsList({ searchText }: { searchText: string }) {
   }, [searchText, setSearchParams]);
 
   if (isSearching) {
-    return <div className="text-center py-8">검색 중...</div>;
+    return <div className="text-center py-8 text-gray-700 dark:text-gray-300">검색 중...</div>;
   }
 
   if (searchResults.length === 0) {
-    return <div className="text-center py-8">검색 결과가 없습니다.</div>;
+    return <div className="text-center py-8 text-gray-700 dark:text-gray-300">검색 결과가 없습니다.</div>;
   }
 
   const filteredResults = searchResults;
@@ -126,16 +126,16 @@ export function SearchResultsList({ searchText }: { searchText: string }) {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-gray-600">총 {count}개의 결과</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">총 {count}개의 결과</p>
         <div className="flex items-center gap-2">
-          <label htmlFor="limit-select" className="text-sm text-gray-600">
+          <label htmlFor="limit-select" className="text-sm text-gray-600 dark:text-gray-400">
             페이지당:
           </label>
           <select
             id="limit-select"
             value={limit}
             onChange={(e) => handleLimitChange(Number(e.target.value))}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value={10}>10개</option>
             <option value={20}>20개</option>
@@ -157,7 +157,7 @@ export function SearchResultsList({ searchText }: { searchText: string }) {
           <button
             onClick={() => handlePageChange(page - 1)}
             disabled={page === 1}
-            className="px-3 py-2 text-sm border border-gray-300 rounded-md bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             이전
           </button>
@@ -165,7 +165,7 @@ export function SearchResultsList({ searchText }: { searchText: string }) {
           {getPageNumbers().map((pageNum, index) => {
             if (pageNum === '...') {
               return (
-                <span key={`ellipsis-${index}`} className="px-2 text-gray-500">
+                <span key={`ellipsis-${index}`} className="px-2 text-gray-500 dark:text-gray-400">
                   ...
                 </span>
               );
@@ -179,7 +179,7 @@ export function SearchResultsList({ searchText }: { searchText: string }) {
                 className={`px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   page === pageNumber
                     ? 'bg-blue-500 text-white border-blue-500'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                 }`}
               >
                 {pageNumber}
@@ -190,7 +190,7 @@ export function SearchResultsList({ searchText }: { searchText: string }) {
           <button
             onClick={() => handlePageChange(page + 1)}
             disabled={page === totalPages}
-            className="px-3 py-2 text-sm border border-gray-300 rounded-md bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             다음
           </button>
