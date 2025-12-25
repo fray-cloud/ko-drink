@@ -11,6 +11,7 @@ export function DetailPage() {
   const dup = searchParams.get('dup');
   const name = searchParams.get('name');
   const referenceId = searchParams.get('id');
+  const searchText = searchParams.get('q') || undefined;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -20,6 +21,7 @@ export function DetailPage() {
             book={book}
             liquor={liquor}
             dup={dup ? parseInt(dup, 10) : undefined}
+            searchText={searchText}
           />
         )}
         {type === 'book' && name && <BookDetailView bookName={name} />}

@@ -1,11 +1,34 @@
 import { useRecipeDetailService } from '../hooks/use-recipe.service';
 import { useThemeStore } from '../../common/hooks/store/use-theme.store';
 import type { RecipeStep } from '@ko-drink/shared';
+import { useMemo } from 'react';
 
 interface RecipeDetailViewProps {
   book: string;
   liquor: string;
   dup?: number;
+  searchText?: string;
+}
+
+// 텍스트에서 검색어를 볼드 처리하는 함수
+function highlightText(text: string, searchText: string): JSX.Element[] {
+  if (!searchText || !text) {
+    return [<span key="text">{text}</span>];
+  }
+
+  const regex = new RegExp(`(${searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const parts = text.split(regex);
+  
+  return parts.map((part, index) => {
+    if (part.toLowerCase() === searchText.toLowerCase()) {
+      return (
+        <strong key={index} className="font-bold text-gray-900 dark:text-white">
+          {part}
+        </strong>
+      );
+    }
+    return <span key={index}>{part}</span>;
+  });
 }
 
 // 재료 설명 맵
@@ -54,7 +77,7 @@ const PROCESSING_METHODS: Record<string, { category: string; description: string
   인절미: { category: '떡류', description: '알곡+찌기+치기' },
 };
 
-export function RecipeDetailView({ book, liquor, dup }: RecipeDetailViewProps) {
+export function RecipeDetailView({ book, liquor, dup, searchText }: RecipeDetailViewProps) {
   const { recipe, isLoading, error } = useRecipeDetailService(book, liquor, dup);
   const { getEffectiveTheme } = useThemeStore();
   const isDark = getEffectiveTheme() === 'dark';
@@ -129,7 +152,9 @@ export function RecipeDetailView({ book, liquor, dup }: RecipeDetailViewProps) {
             <div key={index} className="border-l-4 border-blue-500 pl-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-r">
               <div className="flex items-center gap-2 mb-2">
                 {step.step && (
-                  <span className="font-semibold text-lg text-gray-900 dark:text-white">{step.step || '(빈값)'}</span>
+                  <span className="font-semibold text-lg text-gray-900 dark:text-white">
+                    {searchText ? highlightText(step.step || '(빈값)', searchText) : (step.step || '(빈값)')}
+                  </span>
                 )}
                 {step.day !== undefined && step.day !== null && Number(step.day) > 0 && (
                   <span className="text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-700 px-2 py-1 rounded">
@@ -195,7 +220,9 @@ export function RecipeDetailView({ book, liquor, dup }: RecipeDetailViewProps) {
               {step.memo && (
                 <div className="mt-3 bg-yellow-50 dark:bg-yellow-900/30 border-l-4 border-yellow-400 dark:border-yellow-600 p-3 rounded">
                   <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-200 mb-1">메모</p>
-                  <p className="text-sm text-yellow-900 dark:text-yellow-100 whitespace-pre-wrap">{step.memo}</p>
+                  <p className="text-sm text-yellow-900 dark:text-yellow-100 whitespace-pre-wrap">
+                    {searchText ? highlightText(step.memo, searchText) : step.memo}
+                  </p>
                 </div>
               )}
             </div>
@@ -204,22 +231,38 @@ export function RecipeDetailView({ book, liquor, dup }: RecipeDetailViewProps) {
       )}
 
       {/* 원문 텍스트 */}
-      {recipe.originalText && (
+      {(recipe.originalText || recipe.originalTextTranslation) && (
         <div className="space-y-2 border-t border-gray-200 dark:border-gray-700 pt-4">
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">원문</h2>
-          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <p 
-              className="original-text text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed"
-              style={{ 
-                fontFamily: '"함초롬바탕", "HANBatang", "Noto Serif KR", serif',
-                fontSize: '1.1rem',
-                lineHeight: '1.8',
-                backgroundColor: isDark ? '#2d2d2d' : '#efefe5',
-              }}
-            >
-              {recipe.originalText}
-            </p>
-          </div>
+          {recipe.originalText && (
+            <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+              <p 
+                className="original-text text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed"
+                style={{ 
+                  fontFamily: '"함초롬바탕", "HANBatang", "Noto Serif KR", serif',
+                  fontSize: '1.1rem',
+                  lineHeight: '1.8',
+                  backgroundColor: isDark ? '#2d2d2d' : '#efefe5',
+                }}
+              >
+                {searchText ? highlightText(recipe.originalText, searchText) : recipe.originalText}
+              </p>
+            </div>
+          )}
+          {recipe.originalTextTranslation && (
+            <div className="mt-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">해석</h3>
+              <p 
+                className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed"
+                style={{ 
+                  fontSize: '1rem',
+                  lineHeight: '1.8',
+                }}
+              >
+                {searchText ? highlightText(recipe.originalTextTranslation, searchText) : recipe.originalTextTranslation}
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>

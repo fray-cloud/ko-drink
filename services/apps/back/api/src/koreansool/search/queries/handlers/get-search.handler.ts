@@ -33,14 +33,6 @@ export class GetSearchHandler implements IQueryHandler<GetSearchQuery> {
       let results = this.htmlParser.parseSearchResults(html);
       this.logger.log(`[Search] Parsed results count: ${results.length}`);
       
-      // 검색 결과에서는 원문 텍스트를 가져오지 않음 (성능 최적화)
-      // 원문 텍스트는 상세 페이지에서만 필요하므로, 검색 결과에서는 제외
-      // 임시 필드 제거
-      results = results.map((result) => {
-        const { _originalLinkInfo, ...rest } = result;
-        return rest;
-      });
-      
       // 중복 제거: book과 liquor가 같은 항목 중 첫 번째만 유지
       const seen = new Map<string, number>();
       results = results.filter((result, index) => {

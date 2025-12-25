@@ -146,7 +146,7 @@ export function SearchResultsList({ searchText }: { searchText: string }) {
       <div className="mt-4">
         <div>
           {filteredResults.map((result: SearchResult, index: number) => (
-            <RecipeListItem key={index} item={result} />
+            <RecipeListItem key={index} item={result} searchText={searchText} />
           ))}
         </div>
       </div>

@@ -89,6 +89,34 @@ export class RecipeItemDto {
     example: '원문 내용...',
   })
   originalText?: string;
+
+  @ApiProperty({
+    description: '원문 해석',
+    required: false,
+    example: '원문 해석 내용...',
+  })
+  originalTextTranslation?: string;
+
+  @ApiProperty({
+    description: '상세 주방문 링크',
+    required: false,
+    example: {
+      href: '/api/koreansool/recipes',
+      params: {
+        book: '승부리안주방문',
+        liquor: '백수환동국',
+        dup: 1,
+      },
+    },
+  })
+  detailRecipe?: {
+    href: string;
+    params: {
+      book: string;
+      liquor: string;
+      dup?: number;
+    };
+  };
 }
 
 export class RecipeResponseDto {
@@ -150,6 +178,34 @@ export class RecipeResponseDto {
     example: '원문 내용...',
   })
   originalText?: string;
+
+  @ApiProperty({
+    description: '원문 해석',
+    required: false,
+    example: '원문 해석 내용...',
+  })
+  originalTextTranslation?: string;
+
+  @ApiProperty({
+    description: '상세 주방문 링크',
+    required: false,
+    example: {
+      href: '/api/koreansool/recipes',
+      params: {
+        book: '승부리안주방문',
+        liquor: '백수환동국',
+        dup: 1,
+      },
+    },
+  })
+  detailRecipe?: {
+    href: string;
+    params: {
+      book: string;
+      liquor: string;
+      dup?: number;
+    };
+  };
 }
 
 export class RecipeListResponseDto {

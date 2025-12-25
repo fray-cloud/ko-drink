@@ -151,22 +151,39 @@ export class GetRecipeHandler implements IQueryHandler<GetRecipeQuery> {
         return step;
       });
       
-      // 상세 페이지에서는 원문 텍스트도 가져오기
-      // 이미 가져온 HTML을 재사용하여 성능 최적화
+      // 상세 페이지에서는 원문 텍스트와 해석도 가져오기
+      // HTML에서 직접 추출
+      const $ = cheerio.load(html);
       let originalText: string | undefined;
-      try {
-        originalText = await this.apiClient.getOriginalText(
-          metadata?.book || query.book || '',
-          metadata?.liquor || query.liq || '',
-          dup,
-          html, // 이미 가져온 HTML 재사용
-        );
-        if (!originalText || originalText.length === 0) {
+      let originalTextTranslation: string | undefined;
+      
+      // 레시피 번호 추출 (toggle_org_button의 onclick에서)
+      let recipeIndex = 1; // 기본값
+      const $toggleButton = $('.toggle_org_button').first();
+      if ($toggleButton.length > 0) {
+        const onclick = $toggleButton.attr('onclick') || '';
+        const match = onclick.match(/ToggleText\(this,(\d+)\)/);
+        if (match && match[1]) {
+          recipeIndex = parseInt(match[1], 10);
+        }
+      }
+      
+      // 원문 텍스트 추출 (id_text_org_N)
+      const $orgText = $(`#id_text_org_${recipeIndex}, [id^="id_text_org_"]`).first();
+      if ($orgText.length > 0) {
+        originalText = $orgText.text().trim();
+        if (originalText && originalText.length <= 5) {
           originalText = undefined;
         }
-      } catch (error) {
-        this.logger.warn(`[Recipe] Failed to fetch original text: ${error.message}`);
-        originalText = undefined;
+      }
+      
+      // 해석 텍스트 추출 (id_text_trs_N)
+      const $trsText = $(`#id_text_trs_${recipeIndex}, [id^="id_text_trs_"]`).first();
+      if ($trsText.length > 0) {
+        originalTextTranslation = $trsText.text().trim();
+        if (originalTextTranslation && originalTextTranslation.length <= 5) {
+          originalTextTranslation = undefined;
+        }
       }
 
       return {
@@ -176,6 +193,7 @@ export class GetRecipeHandler implements IQueryHandler<GetRecipeQuery> {
         recipe,
         ...metaInfo,
         originalText,
+        originalTextTranslation,
       };
     } catch (error) {
       this.logger.error(`[Recipe] Error: ${error.message}`, error.stack);

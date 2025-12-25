@@ -1,3 +1,12 @@
+export interface DetailRecipeLink {
+  href: string;
+  params: {
+    book: string;
+    liquor: string;
+    dup?: number;
+  };
+}
+
 export interface SearchResult {
   book: string;
   liquor: string;
@@ -9,6 +18,8 @@ export interface SearchResult {
   alias?: string; // 별칭 (예: "이화주")
   similarBook?: string; // 유사 문헌 (예: "잡초")
   originalText?: string; // 원문 텍스트
+  originalTextTranslation?: string; // 원문 해석
+  detailRecipe?: DetailRecipeLink; // 상세 주방문 링크
 }
 
 export interface RecipeInfo {
@@ -23,6 +34,8 @@ export interface RecipeInfo {
   alias?: string; // 별칭 (예: "이화주")
   similarBook?: string; // 유사 문헌 (예: "잡초")
   originalText?: string; // 원문 텍스트
+  originalTextTranslation?: string; // 원문 해석
+  detailRecipe?: DetailRecipeLink; // 상세 주방문 링크
 }
 
 export interface RecipeMaterial {

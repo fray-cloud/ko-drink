@@ -22,6 +22,7 @@ function convertRecipeToSearchResult(recipe: RecipeInfo): SearchResult {
     alias: recipe.alias,
     similarBook: recipe.similarBook,
     originalText: recipe.originalText,
+    originalTextTranslation: recipe.originalTextTranslation,
   };
 }
 
