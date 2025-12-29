@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useBooksQuery, useBookQuery } from './query/use-books.query';
 import { useBooksStore } from './store/use-books.store';
 import type { PaginationOptions } from '@ko-drink/shared';
+import type { Book } from '@ko-drink/shared';
 
 export function useBookService(options?: PaginationOptions) {
   const booksQuery = useBooksQuery(options);
@@ -15,12 +16,29 @@ export function useBookService(options?: PaginationOptions) {
 }
 
 export function useBookDetailService(bookName: string) {
+  const { books, isLoaded } = useBooksStore();
   const bookQuery = useBookQuery(bookName);
 
+  // 스토어에 데이터가 있으면 먼저 스토어에서 찾기
+  const bookFromStore = useMemo(() => {
+    if (!bookName || !isLoaded || books.length === 0) return null;
+    
+    const decodedName = decodeURIComponent(bookName);
+    return books.find((book: Book) => {
+      if (!book || !book.name) return false;
+      return book.name === decodedName || book.name === bookName || book.name.trim() === decodedName.trim();
+    }) || null;
+  }, [bookName, books, isLoaded]);
+
+  // 스토어에 있으면 스토어 데이터 사용, 없으면 쿼리 결과 사용
+  const book = bookFromStore || bookQuery.data;
+  const isLoading = !isLoaded && bookQuery.isLoading;
+  const error = bookQuery.error;
+
   return {
-    book: bookQuery.data,
-    isLoading: bookQuery.isLoading,
-    error: bookQuery.error,
+    book,
+    isLoading,
+    error,
   };
 }
 

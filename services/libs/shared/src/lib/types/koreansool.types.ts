@@ -54,6 +54,7 @@ export interface Book {
   name: string;
   nameHanja?: string;
   author?: string;
+  authorHanja?: string;
   year?: number;
   description?: string;
   originalLink?: string;

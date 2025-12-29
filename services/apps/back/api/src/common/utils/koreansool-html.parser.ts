@@ -59,6 +59,7 @@ export interface Book {
   name: string;
   nameHanja?: string;
   author?: string;
+  authorHanja?: string;
   year?: number;
   description?: string;
   originalLink?: string;
@@ -285,8 +286,11 @@ export class KoreansoolHtmlParser {
 
         const book: Partial<Book> = {};
 
+        // 모든 링크 찾기
+        const $allLinks = $secondCell.find('a');
+        
         // 문헌명 추출 (첫 번째 링크의 텍스트)
-        const nameLink = $secondCell.find('a').first();
+        const nameLink = $allLinks.first();
         if (nameLink.length > 0) {
           book.name = nameLink.text().trim();
         }
@@ -294,41 +298,182 @@ export class KoreansoolHtmlParser {
         // 한문명 추출 (문헌명 링크 다음의 괄호 안 텍스트)
         // 첫 번째 줄에서 괄호 안의 텍스트 찾기
         const firstLine = $secondCell.html() || '';
-        const hanjaMatch = firstLine.match(/<a[^>]*>([^<]+)<\/a>\(([^)]+)\)/);
+        const hanjaMatch = firstLine.match(/<a[^>]*>([^<]+)<\/a>\s*\(([^)]+)\)/);
         if (hanjaMatch && hanjaMatch[2]) {
-          book.nameHanja = hanjaMatch[2];
+          book.nameHanja = hanjaMatch[2].trim();
         }
 
+        // HTML을 한 번만 가져오기 (재사용)
+        const secondCellHtml = $secondCell.html() || '';
+        
         // 저자와 연도 추출 (예: "최치원(崔致遠) 886년")
-        // 첫 번째 br 태그 이후의 텍스트에서 추출
-        const firstBr = $secondCell.find('br').first();
-        if (firstBr.length > 0) {
-          const afterBrText = firstBr.nextAll().text().trim();
-          const authorYearMatch = afterBrText.match(
-            /^([^(]+(?:\([^)]+\))?)\s+(\d{4})년/,
-          );
-          if (authorYearMatch) {
-            book.author = authorYearMatch[1].trim();
-            book.year = parseInt(authorYearMatch[2], 10);
+        // 첫 번째 br 태그 이후, 두 번째 br 태그 이전의 텍스트에서 추출
+        // HTML을 <br>로 split하여 처리
+        const brSplits = secondCellHtml.split(/<br\s*\/?>/i);
+        
+        // 첫 번째 br과 두 번째 br 사이의 텍스트 추출
+        let authorYearText = '';
+        
+        if (brSplits.length >= 3) {
+          // 첫 번째 br과 두 번째 br 사이의 HTML (인덱스 1)
+          const authorYearHtml = brSplits[1];
+          
+          // cheerio로 로드하기 전에 HTML 정리
+          const $authorYear = cheerio.load(authorYearHtml);
+          
+          // 모든 링크 제거
+          $authorYear('a').remove();
+          
+          // 텍스트 추출
+          authorYearText = $authorYear('body').text().trim();
+          
+          // 만약 텍스트가 비어있으면 원본 HTML에서 직접 추출 시도
+          if (!authorYearText || authorYearText.length === 0) {
+            // HTML 태그 제거하고 텍스트만 추출
+            authorYearText = authorYearHtml.replace(/<[^>]+>/g, '').trim();
+          }
+        } else if (brSplits.length >= 2) {
+          // 두 번째 br이 없는 경우 - 첫 번째 br 이후 첫 번째 줄만 파싱
+          const afterFirstBrHtml = brSplits[1];
+          const $afterFirstBr = cheerio.load(afterFirstBrHtml);
+          $afterFirstBr('a').remove();
+          const afterBrText = $afterFirstBr('body').text().trim();
+          
+          // 첫 번째 줄만 추출 (줄바꿈 기준)
+          authorYearText = afterBrText.split('\n')[0].trim();
+          
+          // 만약 텍스트가 비어있으면 원본 HTML에서 직접 추출 시도
+          if (!authorYearText || authorYearText.length === 0) {
+            authorYearText = afterFirstBrHtml.replace(/<[^>]+>/g, '').trim();
+            authorYearText = authorYearText.split('\n')[0].trim();
+          }
+        }
+        
+        // 텍스트 정리 및 파싱
+        if (authorYearText) {
+          // 앞의 불필요한 문자 제거 (쉼표, 공백, 줄바꿈, 탭 등)
+          const beforeClean = authorYearText;
+          authorYearText = authorYearText.replace(/^[(),\s\n\r\t,]+/, '').trim();
+          
+          // 줄바꿈 문자 제거 및 공백 정리 (모든 공백을 하나로)
+          authorYearText = authorYearText.replace(/[\s\n\r\t]+/g, ' ').trim();
+          
+          // 패턴: "저자명(저자한자) 연도년" 또는 "저자명(저자한자)연도년"
+          // 먼저 전체 패턴 매칭 시도 (여러 변형 시도)
+          // '년' 문자를 유니코드로도 매칭 시도
+          // 3자리 또는 4자리 숫자 모두 허용
+          let fullPatternMatch = authorYearText.match(/^(.+?)\s*\(([^)]+)\)\s*(\d{3,4})\s*년\s*$/u);
+          if (!fullPatternMatch) {
+            fullPatternMatch = authorYearText.match(/^(.+?)\s*\(([^)]+)\)\s*(\d{3,4})년\s*$/u);
+          }
+          if (!fullPatternMatch) {
+            fullPatternMatch = authorYearText.match(/^(.+?)\s*\(([^)]+)\)\s*(\d{3,4})\s*년$/u);
+          }
+          if (!fullPatternMatch) {
+            fullPatternMatch = authorYearText.match(/^(.+?)\s*\(([^)]+)\)\s*(\d{3,4})년$/u);
+          }
+          
+          if (fullPatternMatch) {
+            book.author = fullPatternMatch[1].trim();
+            book.authorHanja = fullPatternMatch[2].trim();
+            book.year = parseInt(fullPatternMatch[3], 10);
           } else {
-            // 연도만 있는 경우
-            const yearMatch = afterBrText.match(/(\d{4})년/);
-            if (yearMatch) {
+            // 전체 패턴이 매칭되지 않으면 연도와 저자를 따로 찾기
+            // '년' 문자를 유니코드로도 매칭 시도 (공백 있음/없음 모두 시도)
+            // 3자리 또는 4자리 숫자 모두 시도
+            let yearMatch = authorYearText.match(/(\d{3,4})\s*년/u);
+            if (!yearMatch) {
+              yearMatch = authorYearText.match(/(\d{3,4})년/u);
+            }
+            if (!yearMatch) {
+              // 숫자만 찾고 '년'은 별도로 찾기
+              const numberMatch = authorYearText.match(/(\d{3,4})/);
+              const yearCharIndex = authorYearText.indexOf('년');
+              if (numberMatch && yearCharIndex !== -1 && numberMatch.index !== undefined) {
+                // 숫자와 '년'이 가까이 있는지 확인
+                const numberEndIndex = (numberMatch.index || 0) + numberMatch[0].length;
+                if (yearCharIndex >= numberEndIndex && yearCharIndex <= numberEndIndex + 2) {
+                  yearMatch = numberMatch;
+                }
+              }
+            }
+            
+            if (yearMatch && yearMatch.index !== undefined) {
               book.year = parseInt(yearMatch[1], 10);
+              
+              // 연도 앞의 텍스트가 저자
+              const beforeYear = authorYearText.substring(0, yearMatch.index).trim();
+              
+              if (beforeYear) {
+                // 저자명에서 한자 분리: "최치원(崔致遠)" 형식
+                const authorWithHanjaMatch = beforeYear.match(/^(.+?)\s*\(([^)]+)\)\s*$/u);
+                
+                if (authorWithHanjaMatch) {
+                  book.author = authorWithHanjaMatch[1].trim();
+                  book.authorHanja = authorWithHanjaMatch[2].trim();
+                } else {
+                  // 한자가 없는 경우
+                  book.author = beforeYear;
+                }
+              }
+            } else {
+              // 연도가 없는 경우 - 저자만 파싱
+              const authorWithHanjaMatch = authorYearText.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+              if (authorWithHanjaMatch) {
+                book.author = authorWithHanjaMatch[1].trim();
+                book.authorHanja = authorWithHanjaMatch[2].trim();
+              } else if (authorYearText.trim()) {
+                // 한자도 없는 경우 - 그대로 저장하지 말고 파싱 시도
+                // 만약 "최치원(崔致遠) 886년" 형식이 그대로 들어온 경우
+                const fallbackMatch = authorYearText.match(/^(.+?)\s*\(([^)]+)\)\s*(\d{3,4})\s*년/u);
+                
+                if (fallbackMatch) {
+                  book.author = fallbackMatch[1].trim();
+                  book.authorHanja = fallbackMatch[2].trim();
+                  book.year = parseInt(fallbackMatch[3], 10);
+                } else {
+                  // 최종 fallback: 그대로 저장 (이 경우는 파싱 실패)
+                  book.author = authorYearText.trim();
+                }
+              }
             }
           }
         }
 
         // 원본 링크 추출
-        const originalLink = $secondCell.find('a[target*="원본"]').attr('href');
+        // target 속성에 "책원본"이 포함되거나 title이 "원본 보기"인 링크
+        let originalLink = $secondCell.find('a[target*="책원본"], a[target*="원본"]').attr('href');
+        if (!originalLink) {
+          $allLinks.each((_, link) => {
+            const $link = $(link);
+            const target = $link.attr('target') || '';
+            const title = $link.attr('title') || '';
+            const linkText = $link.text().trim();
+            if (target.includes('원본') || title.includes('원본 보기') || linkText === '원본') {
+              originalLink = $link.attr('href');
+              return false; // break
+            }
+          });
+        }
         if (originalLink) {
           book.originalLink = originalLink;
         }
 
         // 참조 링크 추출
-        const referenceLink = $secondCell
-          .find('a[target*="참조"]')
-          .attr('href');
+        // target 속성에 "책참조"가 포함되거나 title이 "참조 보기"인 링크
+        let referenceLink = $secondCell.find('a[target*="책참조"], a[target*="참조"]').attr('href');
+        if (!referenceLink) {
+          $allLinks.each((_, link) => {
+            const $link = $(link);
+            const target = $link.attr('target') || '';
+            const title = $link.attr('title') || '';
+            const linkText = $link.text().trim();
+            if (target.includes('참조') || title.includes('참조 보기') || linkText === '참조') {
+              referenceLink = $link.attr('href');
+              return false; // break
+            }
+          });
+        }
         if (referenceLink) {
           book.referenceLink = referenceLink;
         }
@@ -339,14 +484,74 @@ export class KoreansoolHtmlParser {
           book.recipeLink = recipeLink;
         }
 
-        // 설명 추출 (두 번째 br 태그 이후의 텍스트)
-        const brs = $secondCell.find('br');
-        if (brs.length >= 2) {
-          const secondBr = brs.eq(1);
-          const descriptionText = secondBr.nextAll().text().trim();
-          if (descriptionText) {
-            book.description = descriptionText;
+        // 설명 추출
+        // 구조: 첫 번째 줄 - 문헌명(한자명) 원본 참조 링크
+        //       두 번째 줄 (첫 번째 br) - 저자(저자한자) 연도
+        //       세 번째 줄 (두 번째 br 또는 <br><br> 이후) - 설명
+        // secondCellHtml은 위에서 이미 선언됨
+        let descriptionText = '';
+        
+        // <br><br> 패턴 찾기 (두 번째 br 이후가 설명)
+        const doubleBrMatch = secondCellHtml.match(/<br>\s*<br>/);
+        if (doubleBrMatch && doubleBrMatch.index !== undefined) {
+          // <br><br> 이후의 HTML
+          const afterDoubleBrHtml = secondCellHtml.substring(doubleBrMatch.index + doubleBrMatch[0].length);
+          const $afterDoubleBr = cheerio.load(afterDoubleBrHtml);
+          
+          // 모든 링크 제거
+          $afterDoubleBr('a').remove();
+          
+          // 텍스트 추출
+          descriptionText = $afterDoubleBr('body').text().trim();
+          
+          // 마지막 <br> 제거
+          descriptionText = descriptionText.replace(/<br\s*\/?>/g, '').trim();
+        } else {
+          // <br><br>가 없으면 두 번째 br 이후 찾기
+          const brs = $secondCell.find('br');
+          if (brs.length >= 2) {
+            // 두 번째 br의 위치 찾기
+            const firstBrIndex = secondCellHtml.indexOf('<br>');
+            if (firstBrIndex >= 0) {
+              const afterFirstBr = secondCellHtml.substring(firstBrIndex + 4);
+              const secondBrIndex = afterFirstBr.indexOf('<br>');
+              if (secondBrIndex >= 0) {
+                const afterSecondBrHtml = afterFirstBr.substring(secondBrIndex + 4);
+                const $afterSecondBr = cheerio.load(afterSecondBrHtml);
+                $afterSecondBr('a').remove();
+                descriptionText = $afterSecondBr('body').text().trim();
+              }
+            }
           }
+        }
+        
+        // 설명에서 저자와 연도 정보 제거 (중복 제거)
+        if (descriptionText && book.author) {
+          // "저자명(저자한자)" 형식 제거
+          if (book.authorHanja) {
+            const fullAuthorPattern = `${book.author.replace(/[()]/g, '\\$&')}\\s*\\(${book.authorHanja.replace(/[()]/g, '\\$&')}\\)`;
+            descriptionText = descriptionText.replace(new RegExp(fullAuthorPattern, 'g'), '').trim();
+          }
+          // 저자명만 제거
+          const authorPattern = book.author.replace(/[()]/g, '\\$&');
+          descriptionText = descriptionText.replace(new RegExp(authorPattern, 'g'), '').trim();
+          // 저자 한자 제거
+          if (book.authorHanja) {
+            const authorHanjaPattern = book.authorHanja.replace(/[()]/g, '\\$&');
+            descriptionText = descriptionText.replace(new RegExp(authorHanjaPattern, 'g'), '').trim();
+          }
+        }
+        if (descriptionText && book.year) {
+          descriptionText = descriptionText.replace(new RegExp(`${book.year}년`, 'g'), '').trim();
+        }
+        
+        // 공백 정리
+        if (descriptionText) {
+          descriptionText = descriptionText.replace(/\s+/g, ' ').trim();
+        }
+        
+        if (descriptionText && descriptionText.length > 0) {
+          book.description = descriptionText;
         }
 
         // name이 있을 때만 추가

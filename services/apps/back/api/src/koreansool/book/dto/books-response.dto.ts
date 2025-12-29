@@ -15,14 +15,21 @@ export class BookItemDto {
   @ApiProperty({
     description: '저자',
     required: false,
-    example: '이덕수',
+    example: '최치원',
   })
   author?: string;
 
   @ApiProperty({
+    description: '저자 한자',
+    required: false,
+    example: '崔致遠',
+  })
+  authorHanja?: string;
+
+  @ApiProperty({
     description: '연도',
     required: false,
-    example: 1800,
+    example: 886,
   })
   year?: number;
 

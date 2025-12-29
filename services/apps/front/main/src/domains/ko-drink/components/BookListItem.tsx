@@ -18,15 +18,36 @@ export function BookListItem({ book }: BookListItemProps) {
   return (
     <div
       onClick={handleClick}
-      className="p-4 border-b border-gray-200 hover:bg-gray-50 cursor-pointer"
+      className="p-4 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
     >
-      <h3 className="text-lg font-semibold">{book.name}</h3>
-      {book.nameHanja && <p className="text-sm text-gray-600">{book.nameHanja}</p>}
-      {book.author && <p className="text-sm text-gray-500">저자: {book.author}</p>}
-      {book.year && <p className="text-sm text-gray-500">연도: {book.year}</p>}
-      {book.description && (
-        <p className="text-sm text-gray-500 mt-1 line-clamp-2">{book.description}</p>
-      )}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{book.name}</h3>
+          {book.nameHanja && (
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{book.nameHanja}</p>
+          )}
+          <div className="mt-2 space-y-1">
+            {book.author && (
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">저자:</span> {book.author}
+                {book.authorHanja && (
+                  <span className="ml-1">({book.authorHanja})</span>
+                )}
+              </p>
+            )}
+            {book.year && (
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">연도:</span> {book.year}
+              </p>
+            )}
+          </div>
+          {book.description && (
+            <p className="text-sm text-gray-700 dark:text-gray-300 mt-2 line-clamp-2">
+              {book.description}
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

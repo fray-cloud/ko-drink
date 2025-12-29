@@ -22,6 +22,12 @@ export function RootLayout() {
                 >
                   검색
                 </Link>
+                <Link
+                  to={KO_DRINK_ROUTES.BOOKS}
+                  className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                >
+                  문헌
+                </Link>
               </nav>
             </div>
             <div className="flex items-center space-x-4">
