@@ -3,32 +3,13 @@ import { KO_DRINK_ROUTES } from '../router';
 import type { SearchResult } from '@ko-drink/shared';
 import { useMemo } from 'react';
 import React from 'react';
+import { highlightText, parseDescriptionWithBadges } from '../../common/utils/text.utils';
 
 interface RecipeListItemProps {
   item: SearchResult;
   searchText?: string;
 }
 
-// 텍스트에서 검색어를 볼드 처리하는 함수
-function highlightText(text: string, searchText: string): React.ReactElement[] {
-  if (!searchText || !text) {
-    return [<span key="text">{text}</span>];
-  }
-
-  const regex = new RegExp(`(${searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-  const parts = text.split(regex);
-  
-  return parts.map((part, index) => {
-    if (part.toLowerCase() === searchText.toLowerCase()) {
-      return (
-        <strong key={index} className="font-bold text-gray-900 dark:text-white">
-          {part}
-        </strong>
-      );
-    }
-    return <span key={index}>{part}</span>;
-  });
-}
 
 // DTO의 모든 필드에서 검색어를 찾는 함수 (표시된 필드 제외)
 function findSearchTextInItem(item: SearchResult, searchText: string): string[] {
@@ -168,7 +149,7 @@ export function RecipeListItem({ item, searchText }: RecipeListItemProps) {
       {/* 세 번째 줄: {설명} */}
       {item.description && (
         <p className="text-sm text-gray-700 dark:text-gray-300">
-          {searchText ? highlightText(item.description, searchText) : item.description}
+          {parseDescriptionWithBadges(item.description, searchText)}
         </p>
       )}
       
