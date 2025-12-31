@@ -612,10 +612,54 @@ export class KoreansoolHtmlParser {
 
     $container.find('.tr_rcp_grid').each((_, row) => {
       const $row = $(row);
-      const cells = $row
-        .find('td')
-        .map((_, cell) => $(cell).text().trim())
-        .get();
+      const $cells = $row.find('td');
+
+      // 부재료/메모 행인지 확인 (매우 엄격한 조건)
+      // HTML 구조: <td class=td_rcp_supp>...</td> <td class=td_rcp_memo>...</td>
+      // 일반 레시피: <td>...</td> (클래스 없음)
+      // 첫 번째 셀의 class 속성만 확인하여 빠르게 판단
+      const firstCellClass = ($cells.first().attr('class') || '').trim();
+      const isSuppMemoRow =
+        firstCellClass === 'td_rcp_supp' || firstCellClass === 'td_rcp_memo';
+
+      // 부재료/메모 행인 경우만 별도 처리
+      if (isSuppMemoRow) {
+        let suppText = '';
+        let memoText = '';
+
+        // 각 셀의 class 속성을 확인하여 부재료/메모 추출
+        $cells.each((_, cell) => {
+          const $cell = $(cell);
+          const className = ($cell.attr('class') || '').trim();
+
+          if (className === 'td_rcp_supp') {
+            suppText = $cell.text().trim();
+          } else if (className === 'td_rcp_memo') {
+            memoText = $cell.text().trim();
+          }
+        });
+
+        const materials: RecipeMaterial[] = [];
+        if (suppText) {
+          materials.push({
+            materialName: '부재료',
+            value: suppText,
+          });
+        }
+
+        if (suppText || memoText) {
+          recipe.push({
+            step: undefined,
+            day: 0,
+            materials: materials,
+            memo: memoText || undefined,
+          });
+        }
+        return; // 부재료/메모 행은 여기서 종료, 일반 레시피 파싱은 건너뜀
+      }
+
+      // 일반 레시피 행 처리 (기존 로직 그대로)
+      const cells = $cells.map((_, cell) => $(cell).text().trim()).get();
 
       if (cells.length > 0) {
         const recipeStep = this.parseRecipeRow(cells, fieldNames);
