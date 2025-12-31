@@ -1,4 +1,8 @@
-import { useBookDetailService, useBooksStoreService } from '../hooks/use-book.service';
+import {
+  useBookDetailService,
+  useBooksStoreService,
+  useBookImageService,
+} from '../hooks/use-book.service';
 import { parseDescriptionWithBadges } from '../../common/utils/text.utils';
 
 interface BookDetailViewProps {
@@ -8,13 +12,12 @@ interface BookDetailViewProps {
 export function BookDetailView({ bookName }: BookDetailViewProps) {
   // BooksStore 초기화 (이미 로드된 데이터 활용)
   useBooksStoreService();
-  
+
   const { book, isLoading, error } = useBookDetailService(bookName);
+  const { imageUrl, imageError } = useBookImageService(book?.name);
 
   // 디버깅: bookName 확인
   const decodedName = decodeURIComponent(bookName);
-
-  console.log('book', book);
 
   if (isLoading) {
     return (
@@ -61,46 +64,133 @@ export function BookDetailView({ bookName }: BookDetailViewProps) {
     <div className="space-y-6">
       {/* 기본 정보 */}
       <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{book.name}</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          {book.name}
+        </h1>
         {book.nameHanja && (
-          <p className="text-xl text-gray-700 dark:text-gray-300 mt-1">({book.nameHanja})</p>
+          <p className="text-xl text-gray-700 dark:text-gray-300 mt-1">
+            ({book.nameHanja})
+          </p>
         )}
       </div>
 
       {/* 메타 정보 */}
       <div className="space-y-3">
-        {book.author && (
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">저자</h3>
-            <p className="text-gray-800 dark:text-gray-200">
-              {book.author}
-              {book.authorHanja && (
-                <span className="text-gray-600 dark:text-gray-400 ml-2">({book.authorHanja})</span>
-              )}
-            </p>
+        {/* 이미지 섹션 - 항상 표시 */}
+        {imageUrl && !imageError && (
+          <div className="flex gap-6">
+            <div className="shrink-0">
+              <img
+                src={imageUrl}
+                alt={book.name}
+                className="w-48 h-auto rounded-lg shadow-md object-cover"
+                onLoad={() => {
+                  console.log('Image loaded successfully:', imageUrl);
+                }}
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  console.error('Image load error:', {
+                    src: target.src,
+                    naturalWidth: target.naturalWidth,
+                    naturalHeight: target.naturalHeight,
+                    complete: target.complete,
+                  });
+                }}
+              />
+            </div>
+            {/* 텍스트 정보가 있으면 오른쪽에 배치 */}
+            {(book.author || book.year || book.description) && (
+              <div className="flex-1 space-y-3">
+                {book.author && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      저자
+                    </h3>
+                    <p className="text-gray-800 dark:text-gray-200">
+                      {book.author}
+                      {book.authorHanja && (
+                        <span className="text-gray-600 dark:text-gray-400 ml-2">
+                          ({book.authorHanja})
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
+
+                {book.year && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      연도
+                    </h3>
+                    <p className="text-gray-800 dark:text-gray-200">
+                      {book.year}
+                    </p>
+                  </div>
+                )}
+
+                {book.description && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      설명
+                    </h3>
+                <p className="text-gray-800 dark:text-gray-200">
+                  {parseDescriptionWithBadges(book.description, undefined, book.name)}
+                </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
-        {book.year && (
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">연도</h3>
-            <p className="text-gray-800 dark:text-gray-200">{book.year}</p>
-          </div>
-        )}
+        {/* 텍스트 정보만 있는 경우 */}
+        {(!imageUrl || imageError) &&
+        (book.author || book.year || book.description) ? (
+          <div className="space-y-3">
+            {book.author && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  저자
+                </h3>
+                <p className="text-gray-800 dark:text-gray-200">
+                  {book.author}
+                  {book.authorHanja && (
+                    <span className="text-gray-600 dark:text-gray-400 ml-2">
+                      ({book.authorHanja})
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
 
-        {book.description && (
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">설명</h3>
-            <p className="text-gray-800 dark:text-gray-200">
-              {parseDescriptionWithBadges(book.description)}
-            </p>
+            {book.year && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  연도
+                </h3>
+                <p className="text-gray-800 dark:text-gray-200">{book.year}</p>
+              </div>
+            )}
+
+            {book.description && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  설명
+                </h3>
+                <p className="text-gray-800 dark:text-gray-200">
+                  {parseDescriptionWithBadges(book.description, undefined, book.name)}
+                </p>
+              </div>
+            )}
           </div>
-        )}
+        ) : null}
 
         {/* 링크 섹션 */}
         {(book.originalLink || book.referenceLink || book.recipeLink) && (
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">관련 링크</h3>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+              관련 링크
+            </h3>
             <div className="space-y-2">
               {book.originalLink && (
                 <div className="flex items-center gap-2">
@@ -184,4 +274,3 @@ export function BookDetailView({ bookName }: BookDetailViewProps) {
     </div>
   );
 }
-

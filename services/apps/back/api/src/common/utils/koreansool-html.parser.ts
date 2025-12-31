@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import * as cheerio from 'cheerio';
 
+/**
+ * 상세 레시피 링크 정보
+ */
 export interface DetailRecipeLink {
   href: string;
   params: {
@@ -10,6 +13,9 @@ export interface DetailRecipeLink {
   };
 }
 
+/**
+ * 검색 결과 정보
+ */
 export interface SearchResult {
   book: string;
   liquor: string;
@@ -27,6 +33,9 @@ export interface SearchResult {
   _originalLinkInfo?: { href?: string; dup?: number } | null;
 }
 
+/**
+ * 레시피 정보
+ */
 export interface RecipeInfo {
   book: string;
   liquor: string;
@@ -43,11 +52,17 @@ export interface RecipeInfo {
   detailRecipe?: DetailRecipeLink; // 상세 주방문 링크
 }
 
+/**
+ * 레시피 재료 정보
+ */
 export interface RecipeMaterial {
   materialName: string;
   value: string;
 }
 
+/**
+ * 레시피 단계 정보
+ */
 export interface RecipeStep {
   step?: string;
   day: number;
@@ -55,6 +70,9 @@ export interface RecipeStep {
   memo?: string;
 }
 
+/**
+ * 문헌 정보
+ */
 export interface Book {
   name: string;
   nameHanja?: string;
@@ -67,6 +85,9 @@ export interface Book {
   recipeLink?: string;
 }
 
+/**
+ * 참조 자료 정보
+ */
 export interface Reference {
   id?: string;
   title?: string;
@@ -75,185 +96,82 @@ export interface Reference {
   link?: string;
 }
 
+interface TitleInfo {
+  book: string;
+  liquor: string;
+  titleText: string;
+  $titleRow: cheerio.Cheerio<any>;
+}
+
+interface RecipeIndexInfo {
+  recipeIndex: number;
+  $titleRow: cheerio.Cheerio<any>;
+}
+
+/**
+ * 한국 전통주 레시피 HTML 파서
+ * 한국 전통주 관련 웹사이트의 HTML을 파싱하여 구조화된 데이터로 변환합니다.
+ */
 @Injectable()
 export class KoreansoolHtmlParser {
+  private static readonly MIN_TEXT_LENGTH = 5;
+  private static readonly DEFAULT_FIELD_NAMES = [
+    '단계',
+    '일',
+    '발효',
+    '멥쌀',
+    '찹쌀',
+    '침미',
+    '물',
+    '장수',
+    '탕혼',
+    '냉혼',
+    '가공',
+    '살수',
+    '침숙',
+    '누룩',
+    '누룩형태',
+    '침국',
+    '녹국',
+    '밀분',
+    '석임',
+    '여과',
+    '가주',
+    '온혼',
+    '보쌈',
+    '밀봉',
+    '메모',
+  ];
+
+  /**
+   * 검색 결과 HTML을 파싱하여 레시피 목록을 반환합니다.
+   *
+   * @param html - 파싱할 HTML 문자열
+   * @returns 파싱된 검색 결과 배열 (book과 liquor가 모두 있는 경우만 포함)
+   */
   parseSearchResults(html: string): SearchResult[] {
     const $ = cheerio.load(html);
     const results: SearchResult[] = [];
 
-    // .table_rcp 또는 .table_each_rcp 클래스를 가진 테이블 찾기
     $('.table_rcp, .table_each_rcp').each((_, element) => {
       const $table = $(element);
-      
-      // 제목 추출 - 여러 방법 시도
-      let titleText = '';
-      let $titleRow = $table.find('.tr_rcp_title').first();
-      if ($titleRow.length > 0) {
-        // 링크에서 추출 시도
-        const $links = $titleRow.find('a');
-        if ($links.length >= 2) {
-          const book = $links.eq(0).text().trim();
-          const liquor = $links.eq(1).text().trim();
-          if (book && liquor) {
-            titleText = `${book} - ${liquor}`;
-          }
-        } else {
-          // 텍스트에서 추출
-          titleText = $titleRow.find('td').text().trim();
-        }
-      } else {
-        // 대체 방법: 테이블의 첫 번째 행에서 제목 찾기
-        $titleRow = $table.find('tr').first();
-        titleText = $titleRow.find('td').first().text().trim();
-      }
+      const titleInfo = this.extractTitleInfo($table, $);
 
-      // 메타 정보 파싱
-      const metaInfo = this.parseSearchMetaInfo($titleRow, titleText);
-      const [book, liquor] = this.parseTitle(titleText);
-
-      // book과 liquor가 없으면 건너뛰기
-      if (!book || !liquor) {
+      if (!titleInfo.book || !titleInfo.liquor) {
         return;
       }
 
-      const recipe: RecipeStep[] = [];
-      // 헤더 행에서 필드명 추출
-      const fieldNames: string[] = [];
-      const $headerRow = $table.find('.tr_rcp_field').first();
-      if ($headerRow.length > 0) {
-        $headerRow.find('td').each((_, cell) => {
-          const fieldName = $(cell).text().trim();
-          if (fieldName) {
-            fieldNames.push(fieldName);
-          }
-        });
-      }
+      const recipe = this.parseRecipeSteps($table, $);
+      const metaInfo = this.parseMetaInfo(
+        titleInfo.$titleRow,
+        titleInfo.titleText,
+      );
+      const { originalText, originalTextTranslation } =
+        this.extractOriginalTexts($table, titleInfo.$titleRow, html);
 
-      $table.find('.tr_rcp_grid').each((_, row) => {
-        const $row = $(row);
-        const cells = $row
-          .find('td')
-          .map((_, cell) => $(cell).text().trim())
-          .get();
-
-        if (cells.length > 0) {
-          recipe.push(this.parseRecipeRow(cells, fieldNames));
-        }
-      });
-
-      // 원문 텍스트 및 해석 추출
-      let originalText: string | undefined;
-      let originalTextTranslation: string | undefined;
-      
-      // 레시피 번호 추출 (toggle_org_button의 onclick에서)
-      let recipeIndex = 1; // 기본값
-      const $toggleButton = $titleRow.find('.toggle_org_button').first();
-      if ($toggleButton.length > 0) {
-        const onclick = $toggleButton.attr('onclick') || '';
-        const match = onclick.match(/ToggleText\(this,(\d+)\)/);
-        if (match && match[1]) {
-          recipeIndex = parseInt(match[1], 10);
-        }
-      }
-      
-      // 원문 텍스트 추출 (id_text_org_N)
-      const orgSelector = `#id_text_org_${recipeIndex}, [id^="id_text_org_"]`;
-      
-      // 방법 1: 테이블 내부에서 찾기
-      const $orgTextInTable = $table.find(orgSelector).first();
-      if ($orgTextInTable.length > 0) {
-        originalText = $orgTextInTable.text().trim();
-      }
-      
-      // 방법 2: 테이블 다음 형제 요소에서 찾기
-      if (!originalText || originalText.length <= 5) {
-        const $nextSibling = $table.next();
-        if ($nextSibling.length > 0) {
-          const $orgTextNext = $nextSibling.find(orgSelector).first();
-          if ($orgTextNext.length > 0) {
-            originalText = $orgTextNext.text().trim();
-          }
-        }
-      }
-      
-      // 방법 3: 테이블의 부모 요소에서 찾기
-      if (!originalText || originalText.length <= 5) {
-        const $parent = $table.parent();
-        const $orgTextParent = $parent.find(orgSelector).first();
-        if ($orgTextParent.length > 0) {
-          originalText = $orgTextParent.text().trim();
-        }
-      }
-      
-      // 방법 4: 전체 HTML에서 해당 레시피와 관련된 원문 텍스트 찾기
-      if (!originalText || originalText.length <= 5) {
-        const tableHtml = $table.html() || '';
-        const tableIndex = html.indexOf(tableHtml);
-        if (tableIndex >= 0) {
-          const afterTableHtml = html.substring(tableIndex);
-          const $afterTable = cheerio.load(afterTableHtml);
-          const $orgTextAfter = $afterTable(orgSelector).first();
-          if ($orgTextAfter.length > 0) {
-            originalText = $orgTextAfter.text().trim();
-          }
-        }
-      }
-      
-      // 해석 텍스트 추출 (id_text_trs_N)
-      const trsSelector = `#id_text_trs_${recipeIndex}, [id^="id_text_trs_"]`;
-      
-      // 방법 1: 테이블 내부에서 찾기
-      const $trsTextInTable = $table.find(trsSelector).first();
-      if ($trsTextInTable.length > 0) {
-        originalTextTranslation = $trsTextInTable.text().trim();
-      }
-      
-      // 방법 2: 테이블 다음 형제 요소에서 찾기
-      if (!originalTextTranslation || originalTextTranslation.length <= 5) {
-        const $nextSibling = $table.next();
-        if ($nextSibling.length > 0) {
-          const $trsTextNext = $nextSibling.find(trsSelector).first();
-          if ($trsTextNext.length > 0) {
-            originalTextTranslation = $trsTextNext.text().trim();
-          }
-        }
-      }
-      
-      // 방법 3: 테이블의 부모 요소에서 찾기
-      if (!originalTextTranslation || originalTextTranslation.length <= 5) {
-        const $parent = $table.parent();
-        const $trsTextParent = $parent.find(trsSelector).first();
-        if ($trsTextParent.length > 0) {
-          originalTextTranslation = $trsTextParent.text().trim();
-        }
-      }
-      
-      // 방법 4: 전체 HTML에서 해당 레시피와 관련된 해석 텍스트 찾기
-      if (!originalTextTranslation || originalTextTranslation.length <= 5) {
-        const tableHtml = $table.html() || '';
-        const tableIndex = html.indexOf(tableHtml);
-        if (tableIndex >= 0) {
-          const afterTableHtml = html.substring(tableIndex);
-          const $afterTable = cheerio.load(afterTableHtml);
-          const $trsTextAfter = $afterTable(trsSelector).first();
-          if ($trsTextAfter.length > 0) {
-            originalTextTranslation = $trsTextAfter.text().trim();
-          }
-        }
-      }
-      
-      // 원문 텍스트와 해석이 너무 짧으면 제거
-      if (originalText && originalText.length <= 5) {
-        originalText = undefined;
-      }
-      
-      if (originalTextTranslation && originalTextTranslation.length <= 5) {
-        originalTextTranslation = undefined;
-      }
-
-      results.push({ 
-        book, 
-        liquor, 
+      results.push({
+        book: titleInfo.book,
+        liquor: titleInfo.liquor,
         recipe,
         ...metaInfo,
         originalText,
@@ -264,349 +182,58 @@ export class KoreansoolHtmlParser {
     return results;
   }
 
+  /**
+   * 문헌 목록 HTML을 파싱하여 Book 객체 배열을 반환합니다.
+   *
+   * @param html - 파싱할 HTML 문자열
+   * @returns 파싱된 Book 객체 배열
+   */
   parseBooks(html: string): Book[] {
     const $ = cheerio.load(html);
     const books: Book[] = [];
 
-    // 테이블의 각 행을 파싱 (첫 번째 tr은 헤더일 수 있으므로 제외)
     $('table tr').each((_, row) => {
       const $row = $(row);
       const $cells = $row.find('td');
 
-      // 각 행은 2개의 td를 가짐: 첫 번째는 이미지, 두 번째는 정보
-      if ($cells.length >= 2) {
-        const $firstCell = $cells.eq(0);
-        const $secondCell = $cells.eq(1);
+      if ($cells.length < 2) {
+        return;
+      }
 
-        // 두 번째 셀에서 정보 추출
-        const secondCellText = $secondCell.text().trim();
-        if (!secondCellText) {
-          return; // 빈 행은 건너뛰기
-        }
+      const $secondCell = $cells.eq(1);
+      if (!$secondCell.text().trim()) {
+        return;
+      }
 
-        const book: Partial<Book> = {};
-
-        // 모든 링크 찾기
-        const $allLinks = $secondCell.find('a');
-        
-        // 문헌명 추출 (첫 번째 링크의 텍스트)
-        const nameLink = $allLinks.first();
-        if (nameLink.length > 0) {
-          book.name = nameLink.text().trim();
-        }
-
-        // 한문명 추출 (문헌명 링크 다음의 괄호 안 텍스트)
-        // 첫 번째 줄에서 괄호 안의 텍스트 찾기
-        const firstLine = $secondCell.html() || '';
-        const hanjaMatch = firstLine.match(/<a[^>]*>([^<]+)<\/a>\s*\(([^)]+)\)/);
-        if (hanjaMatch && hanjaMatch[2]) {
-          book.nameHanja = hanjaMatch[2].trim();
-        }
-
-        // HTML을 한 번만 가져오기 (재사용)
-        const secondCellHtml = $secondCell.html() || '';
-        
-        // 저자와 연도 추출 (예: "최치원(崔致遠) 886년")
-        // 첫 번째 br 태그 이후, 두 번째 br 태그 이전의 텍스트에서 추출
-        // HTML을 <br>로 split하여 처리
-        const brSplits = secondCellHtml.split(/<br\s*\/?>/i);
-        
-        // 첫 번째 br과 두 번째 br 사이의 텍스트 추출
-        let authorYearText = '';
-        
-        if (brSplits.length >= 3) {
-          // 첫 번째 br과 두 번째 br 사이의 HTML (인덱스 1)
-          const authorYearHtml = brSplits[1];
-          
-          // cheerio로 로드하기 전에 HTML 정리
-          const $authorYear = cheerio.load(authorYearHtml);
-          
-          // 모든 링크 제거
-          $authorYear('a').remove();
-          
-          // 텍스트 추출
-          authorYearText = $authorYear('body').text().trim();
-          
-          // 만약 텍스트가 비어있으면 원본 HTML에서 직접 추출 시도
-          if (!authorYearText || authorYearText.length === 0) {
-            // HTML 태그 제거하고 텍스트만 추출
-            authorYearText = authorYearHtml.replace(/<[^>]+>/g, '').trim();
-          }
-        } else if (brSplits.length >= 2) {
-          // 두 번째 br이 없는 경우 - 첫 번째 br 이후 첫 번째 줄만 파싱
-          const afterFirstBrHtml = brSplits[1];
-          const $afterFirstBr = cheerio.load(afterFirstBrHtml);
-          $afterFirstBr('a').remove();
-          const afterBrText = $afterFirstBr('body').text().trim();
-          
-          // 첫 번째 줄만 추출 (줄바꿈 기준)
-          authorYearText = afterBrText.split('\n')[0].trim();
-          
-          // 만약 텍스트가 비어있으면 원본 HTML에서 직접 추출 시도
-          if (!authorYearText || authorYearText.length === 0) {
-            authorYearText = afterFirstBrHtml.replace(/<[^>]+>/g, '').trim();
-            authorYearText = authorYearText.split('\n')[0].trim();
-          }
-        }
-        
-        // 텍스트 정리 및 파싱
-        if (authorYearText) {
-          // 앞의 불필요한 문자 제거 (쉼표, 공백, 줄바꿈, 탭 등)
-          const beforeClean = authorYearText;
-          authorYearText = authorYearText.replace(/^[(),\s\n\r\t,]+/, '').trim();
-          
-          // 줄바꿈 문자 제거 및 공백 정리 (모든 공백을 하나로)
-          authorYearText = authorYearText.replace(/[\s\n\r\t]+/g, ' ').trim();
-          
-          // 패턴: "저자명(저자한자) 연도년" 또는 "저자명(저자한자)연도년"
-          // 먼저 전체 패턴 매칭 시도 (여러 변형 시도)
-          // '년' 문자를 유니코드로도 매칭 시도
-          // 3자리 또는 4자리 숫자 모두 허용
-          let fullPatternMatch = authorYearText.match(/^(.+?)\s*\(([^)]+)\)\s*(\d{3,4})\s*년\s*$/u);
-          if (!fullPatternMatch) {
-            fullPatternMatch = authorYearText.match(/^(.+?)\s*\(([^)]+)\)\s*(\d{3,4})년\s*$/u);
-          }
-          if (!fullPatternMatch) {
-            fullPatternMatch = authorYearText.match(/^(.+?)\s*\(([^)]+)\)\s*(\d{3,4})\s*년$/u);
-          }
-          if (!fullPatternMatch) {
-            fullPatternMatch = authorYearText.match(/^(.+?)\s*\(([^)]+)\)\s*(\d{3,4})년$/u);
-          }
-          
-          if (fullPatternMatch) {
-            book.author = fullPatternMatch[1].trim();
-            book.authorHanja = fullPatternMatch[2].trim();
-            book.year = parseInt(fullPatternMatch[3], 10);
-          } else {
-            // 전체 패턴이 매칭되지 않으면 연도와 저자를 따로 찾기
-            // '년' 문자를 유니코드로도 매칭 시도 (공백 있음/없음 모두 시도)
-            // 3자리 또는 4자리 숫자 모두 시도
-            let yearMatch = authorYearText.match(/(\d{3,4})\s*년/u);
-            if (!yearMatch) {
-              yearMatch = authorYearText.match(/(\d{3,4})년/u);
-            }
-            if (!yearMatch) {
-              // 숫자만 찾고 '년'은 별도로 찾기
-              const numberMatch = authorYearText.match(/(\d{3,4})/);
-              const yearCharIndex = authorYearText.indexOf('년');
-              if (numberMatch && yearCharIndex !== -1 && numberMatch.index !== undefined) {
-                // 숫자와 '년'이 가까이 있는지 확인
-                const numberEndIndex = (numberMatch.index || 0) + numberMatch[0].length;
-                if (yearCharIndex >= numberEndIndex && yearCharIndex <= numberEndIndex + 2) {
-                  yearMatch = numberMatch;
-                }
-              }
-            }
-            
-            if (yearMatch && yearMatch.index !== undefined) {
-              book.year = parseInt(yearMatch[1], 10);
-              
-              // 연도 앞의 텍스트가 저자
-              const beforeYear = authorYearText.substring(0, yearMatch.index).trim();
-              
-              if (beforeYear) {
-                // 저자명에서 한자 분리: "최치원(崔致遠)" 형식
-                const authorWithHanjaMatch = beforeYear.match(/^(.+?)\s*\(([^)]+)\)\s*$/u);
-                
-                if (authorWithHanjaMatch) {
-                  book.author = authorWithHanjaMatch[1].trim();
-                  book.authorHanja = authorWithHanjaMatch[2].trim();
-                } else {
-                  // 한자가 없는 경우
-                  book.author = beforeYear;
-                }
-              }
-            } else {
-              // 연도가 없는 경우 - 저자만 파싱
-              const authorWithHanjaMatch = authorYearText.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
-              if (authorWithHanjaMatch) {
-                book.author = authorWithHanjaMatch[1].trim();
-                book.authorHanja = authorWithHanjaMatch[2].trim();
-              } else if (authorYearText.trim()) {
-                // 한자도 없는 경우 - 그대로 저장하지 말고 파싱 시도
-                // 만약 "최치원(崔致遠) 886년" 형식이 그대로 들어온 경우
-                const fallbackMatch = authorYearText.match(/^(.+?)\s*\(([^)]+)\)\s*(\d{3,4})\s*년/u);
-                
-                if (fallbackMatch) {
-                  book.author = fallbackMatch[1].trim();
-                  book.authorHanja = fallbackMatch[2].trim();
-                  book.year = parseInt(fallbackMatch[3], 10);
-                } else {
-                  // 최종 fallback: 그대로 저장 (이 경우는 파싱 실패)
-                  book.author = authorYearText.trim();
-                }
-              }
-            }
-          }
-        }
-
-        // 원본 링크 추출
-        // target 속성에 "책원본"이 포함되거나 title이 "원본 보기"인 링크
-        let originalLink = $secondCell.find('a[target*="책원본"], a[target*="원본"]').attr('href');
-        if (!originalLink) {
-          $allLinks.each((_, link) => {
-            const $link = $(link);
-            const target = $link.attr('target') || '';
-            const title = $link.attr('title') || '';
-            const linkText = $link.text().trim();
-            if (target.includes('원본') || title.includes('원본 보기') || linkText === '원본') {
-              originalLink = $link.attr('href');
-              return false; // break
-            }
-          });
-        }
-        if (originalLink) {
-          book.originalLink = originalLink;
-        }
-
-        // 참조 링크 추출
-        // target 속성에 "책참조"가 포함되거나 title이 "참조 보기"인 링크
-        let referenceLink = $secondCell.find('a[target*="책참조"], a[target*="참조"]').attr('href');
-        if (!referenceLink) {
-          $allLinks.each((_, link) => {
-            const $link = $(link);
-            const target = $link.attr('target') || '';
-            const title = $link.attr('title') || '';
-            const linkText = $link.text().trim();
-            if (target.includes('참조') || title.includes('참조 보기') || linkText === '참조') {
-              referenceLink = $link.attr('href');
-              return false; // break
-            }
-          });
-        }
-        if (referenceLink) {
-          book.referenceLink = referenceLink;
-        }
-
-        // 레시피 링크 추출 (문헌명 링크)
-        const recipeLink = nameLink.attr('href');
-        if (recipeLink) {
-          book.recipeLink = recipeLink;
-        }
-
-        // 설명 추출
-        // 구조: 첫 번째 줄 - 문헌명(한자명) 원본 참조 링크
-        //       두 번째 줄 (첫 번째 br) - 저자(저자한자) 연도
-        //       세 번째 줄 (두 번째 br 또는 <br><br> 이후) - 설명
-        // secondCellHtml은 위에서 이미 선언됨
-        let descriptionText = '';
-        
-        // <br><br> 패턴 찾기 (두 번째 br 이후가 설명)
-        const doubleBrMatch = secondCellHtml.match(/<br>\s*<br>/);
-        if (doubleBrMatch && doubleBrMatch.index !== undefined) {
-          // <br><br> 이후의 HTML
-          const afterDoubleBrHtml = secondCellHtml.substring(doubleBrMatch.index + doubleBrMatch[0].length);
-          const $afterDoubleBr = cheerio.load(afterDoubleBrHtml);
-          
-          // 모든 링크 제거
-          $afterDoubleBr('a').remove();
-          
-          // 텍스트 추출
-          descriptionText = $afterDoubleBr('body').text().trim();
-          
-          // 마지막 <br> 제거
-          descriptionText = descriptionText.replace(/<br\s*\/?>/g, '').trim();
-        } else {
-          // <br><br>가 없으면 두 번째 br 이후 찾기
-          const brs = $secondCell.find('br');
-          if (brs.length >= 2) {
-            // 두 번째 br의 위치 찾기
-            const firstBrIndex = secondCellHtml.indexOf('<br>');
-            if (firstBrIndex >= 0) {
-              const afterFirstBr = secondCellHtml.substring(firstBrIndex + 4);
-              const secondBrIndex = afterFirstBr.indexOf('<br>');
-              if (secondBrIndex >= 0) {
-                const afterSecondBrHtml = afterFirstBr.substring(secondBrIndex + 4);
-                const $afterSecondBr = cheerio.load(afterSecondBrHtml);
-                $afterSecondBr('a').remove();
-                descriptionText = $afterSecondBr('body').text().trim();
-              }
-            }
-          }
-        }
-        
-        // 설명에서 저자와 연도 정보 제거 (중복 제거)
-        if (descriptionText && book.author) {
-          // "저자명(저자한자)" 형식 제거
-          if (book.authorHanja) {
-            const fullAuthorPattern = `${book.author.replace(/[()]/g, '\\$&')}\\s*\\(${book.authorHanja.replace(/[()]/g, '\\$&')}\\)`;
-            descriptionText = descriptionText.replace(new RegExp(fullAuthorPattern, 'g'), '').trim();
-          }
-          // 저자명만 제거
-          const authorPattern = book.author.replace(/[()]/g, '\\$&');
-          descriptionText = descriptionText.replace(new RegExp(authorPattern, 'g'), '').trim();
-          // 저자 한자 제거
-          if (book.authorHanja) {
-            const authorHanjaPattern = book.authorHanja.replace(/[()]/g, '\\$&');
-            descriptionText = descriptionText.replace(new RegExp(authorHanjaPattern, 'g'), '').trim();
-          }
-        }
-        if (descriptionText && book.year) {
-          descriptionText = descriptionText.replace(new RegExp(`${book.year}년`, 'g'), '').trim();
-        }
-        
-        // 공백 정리
-        if (descriptionText) {
-          descriptionText = descriptionText.replace(/\s+/g, ' ').trim();
-        }
-        
-        if (descriptionText && descriptionText.length > 0) {
-          book.description = descriptionText;
-        }
-
-        // name이 있을 때만 추가
-        if (book.name && book.name.trim()) {
-          books.push(book as Book);
-        }
+      const book = this.parseBookRow($secondCell, $);
+      if (book.name?.trim()) {
+        books.push(book);
       }
     });
 
     return books;
   }
 
+  /**
+   * 레시피 상세 페이지 HTML에서 첫 번째 레시피의 단계 정보를 파싱합니다.
+   *
+   * @param html - 파싱할 HTML 문자열
+   * @returns 레시피 단계 배열
+   */
   parseRecipe(html: string): RecipeStep[] {
     const $ = cheerio.load(html);
-    const recipe: RecipeStep[] = [];
-
-    // 첫 번째 레시피 테이블만 파싱 (.table_each_rcp)
     const $firstRecipeTable = $('.table_each_rcp').first();
-
-    // 파싱할 컨테이너 결정
     const $container =
       $firstRecipeTable.length > 0 ? $firstRecipeTable : $('body');
-
-    // 헤더 행에서 필드명 추출
-    const fieldNames: string[] = [];
-    const $headerRow = $container.find('.tr_rcp_field').first();
-    if ($headerRow.length > 0) {
-      $headerRow.find('td').each((_, cell) => {
-        const fieldName = $(cell).text().trim();
-        if (fieldName) {
-          fieldNames.push(fieldName);
-        }
-      });
-    }
-
-    // 데이터 행 파싱
-    $container.find('.tr_rcp_grid').each((_, row) => {
-      const $row = $(row);
-      const cells = $row
-        .find('td')
-        .map((_, cell) => $(cell).text().trim())
-        .get();
-
-      if (cells.length > 0) {
-        const recipeStep = this.parseRecipeRow(cells, fieldNames);
-        // 빈 레시피 스텝은 제외 (step이 없거나 materials가 비어있는 경우)
-        if (recipeStep.step || (recipeStep.materials && recipeStep.materials.length > 0)) {
-          recipe.push(recipeStep);
-        }
-      }
-    });
-
-    return recipe;
+    return this.parseRecipeSteps($container, $);
   }
 
+  /**
+   * 레시피 HTML에서 문헌명과 술 이름을 추출합니다.
+   *
+   * @param html - 파싱할 HTML 문자열
+   * @returns book과 liquor 정보가 담긴 객체, 파싱 실패 시 null
+   */
   parseRecipeMetadata(html: string): { book: string; liquor: string } | null {
     const $ = cheerio.load(html);
     const $titleRow = $('.tr_rcp_title').first();
@@ -615,449 +242,67 @@ export class KoreansoolHtmlParser {
       return null;
     }
 
-    // .tr_rcp_title 내의 모든 링크 찾기
     const $links = $titleRow.find('a');
-
     if ($links.length < 2) {
       return null;
     }
 
-    // 첫 번째 링크: 문헌명
     const book = $links.eq(0).text().trim();
-
-    // 두 번째 링크: 술 이름
     const liquor = $links.eq(1).text().trim();
 
-    if (!book || !liquor) {
-      return null;
-    }
-
-    return { book, liquor };
+    return book && liquor ? { book, liquor } : null;
   }
 
-  // 레시피 메타 정보 파싱 (검색 결과와 동일한 형식)
+  /**
+   * 레시피 HTML에서 메타 정보를 파싱합니다.
+   * 한자명, 설명, 태그, 별칭, 유사 문헌 등의 정보를 추출합니다.
+   *
+   * @param html - 파싱할 HTML 문자열
+   * @returns 레시피 메타 정보 객체
+   */
   parseRecipeMetaInfo(html: string): Partial<RecipeInfo> {
     const $ = cheerio.load(html);
-    const meta: Partial<RecipeInfo> = {};
-
-    // 제목 행 찾기
     const $titleRow = $('.tr_rcp_title').first();
+
     if ($titleRow.length === 0) {
-      return meta;
+      return {};
     }
 
-    const $titleRowHtml = $titleRow.html() || '';
-
-    // org_text_and_error 전까지의 HTML만 추출
-    const orgTextIndex = $titleRowHtml.indexOf('<span class="org_text_and_error"');
-    const contentBeforeOrgText = orgTextIndex > 0 
-      ? $titleRowHtml.substring(0, orgTextIndex) 
-      : $titleRowHtml;
-    
-    const $content = cheerio.load(contentBeforeOrgText);
-
-    // 한자명 추출: (四時節酒) 형식에서 추출
-    // 술 이름 링크의 텍스트에서 찾기
-    const $liquorLink = $content('a[target*="상세 주방문"]').first();
-    if ($liquorLink.length > 0) {
-      const liquorText = $liquorLink.text().trim();
-      // 술 이름 바로 뒤의 괄호에서 한자 추출
-      const hanjaMatch = liquorText.match(/\(([^)]+)\)/);
-      if (hanjaMatch && hanjaMatch[1]) {
-        const hanjaText = hanjaMatch[1].trim();
-        // 한자 문자(한자 범위: \u4E00-\u9FFF)가 포함되어 있으면 한자명으로 간주
-        if (/[\u4E00-\u9FFF]/.test(hanjaText)) {
-          meta.liquorHanja = hanjaText;
-        }
-      }
-    }
-
-    // org_text_and_error 바로 앞의 상세 주방문 링크 찾기
-    const $detailRecipeLink = $content('a.a_nowrap[target="동일"][title="상세 주방문"]').last();
-    if ($detailRecipeLink.length > 0) {
-      const href = $detailRecipeLink.attr('href') || '';
-      if (href.includes('recipe.php')) {
-        // URL 파라미터 파싱 (상대 경로 또는 전체 URL 모두 처리)
-        const queryString = href.includes('?') ? href.split('?')[1].split('#')[0] : '';
-        const urlParams = new URLSearchParams(queryString);
-        const book = urlParams.get('book') || '';
-        const liq = urlParams.get('liq') || '';
-        const dup = urlParams.get('dup');
-        
-        // @ 값은 무시
-        if (book && book !== '@' && liq && liq !== '@') {
-          meta.detailRecipe = {
-            href: '/api/koreansool/recipes',
-            params: {
-              book: decodeURIComponent(book),
-              liquor: decodeURIComponent(liq),
-              dup: dup && dup !== '@' ? parseInt(dup, 10) : undefined,
-            },
-          };
-        }
-      }
-    }
-
-    // org_text_and_error 제거한 HTML로 파싱
-    const $titleRowClean = cheerio.load(contentBeforeOrgText);
-    const cleanText = $titleRowClean('body').text() || '';
-
-    // 태그 추출: [발효주,순곡주,단양주,느림,원본,유사] 형식
-    const tagsMatch = contentBeforeOrgText.match(/\[([^\]]+)\]/);
-    if (tagsMatch && tagsMatch[1]) {
-      // 태그 부분의 HTML을 파싱하여 링크 태그 제거
-      const tagsHtml = tagsMatch[1];
-      const $tags = cheerio.load(tagsHtml);
-      
-      // 원본, 참조, 유사 링크 태그 제거
-      $tags('a[href*="원본"], a[href*="참조"], a[href*="유사"], a[href*="anal"], a[href*="kfood-view"]').remove();
-      
-      const tagsText = $tags('body').text() || tagsHtml;
-      
-      meta.tags = tagsText
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter((tag) => {
-          const trimmed = tag.trim();
-          return trimmed && 
-                 trimmed !== '원본' && 
-                 trimmed !== '유사' && 
-                 trimmed !== '참조';
-        });
-    }
-
-    // 설명 추출: 태그를 제외하고 태그 앞과 뒤의 텍스트를 모두 포함
-    if (tagsMatch && tagsMatch.index !== undefined) {
-      // 상세 주방문 링크 제거한 HTML에서 설명 추출
-      const $descContent = cheerio.load(contentBeforeOrgText);
-      $descContent('a.a_nowrap[target="동일"][title="상세 주방문"]').remove();
-      const cleanTextForDesc = $descContent('body').text() || '';
-      
-      const tagsMatchForDesc = cleanTextForDesc.match(/\[([^\]]+)\]/);
-      if (tagsMatchForDesc && tagsMatchForDesc.index !== undefined) {
-        const beforeTags = cleanTextForDesc.substring(0, tagsMatchForDesc.index);
-        const afterTags = cleanTextForDesc.substring(tagsMatchForDesc.index + tagsMatchForDesc[0].length);
-        
-        // 태그 앞 텍스트 처리
-        const cleanedBefore = beforeTags
-          .replace(/^\d+\.\s*/, '') // "1. " 제거
-          .replace(/\(([^)]+)\)/g, '') // 한자명 괄호 제거 (설명에는 포함하지 않음)
-          // ⇐〚...〛 형식은 설명에 포함되므로 제거하지 않음
-          .trim();
-        
-        // 태그 뒤 텍스트 처리 (인용 부분 포함, 상세 주방문 링크 제외)
-        // HTML에서 이미 상세 주방문 링크 태그를 제거했으므로, ☞ 기호만 제거
-        const cleanedAfter = afterTags
-          .replace(/☞/g, '') // ☞ 제거
-          .trim();
-        
-        // 책이름과 술이름을 제외한 나머지가 설명
-        const parts = cleanedBefore.split(/\s+/).filter(part => part.trim().length > 0);
-        let description = '';
-        
-        if (parts.length > 2) {
-          description = parts.slice(2).join(' ').trim();
-        } else if (parts.length > 0) {
-          description = parts.join(' ').trim();
-        }
-        
-        // 태그 뒤의 텍스트도 설명에 추가 (인용 등)
-        if (cleanedAfter && cleanedAfter.length > 0) {
-          // 유사 문헌 부분은 제외 (별도 필드로 추출)
-          const similarMatch = cleanedAfter.match(/유사[：:]\s*《([^》]+)》/);
-          if (similarMatch) {
-            const beforeSimilar = cleanedAfter.substring(0, similarMatch.index || 0).trim();
-            if (beforeSimilar) {
-              description = description ? `${description} ${beforeSimilar}` : beforeSimilar;
-            }
-          } else {
-            description = description ? `${description} ${cleanedAfter}` : cleanedAfter;
-          }
-        }
-        
-        if (description && description.length > 0) {
-          meta.description = description.trim();
-        }
-      }
-    }
-
-    // 별칭 추출: [] 이후부터 org_text_and_error 전까지
-    if (tagsMatch && tagsMatch.index !== undefined) {
-      const afterTagsIndex = tagsMatch.index + tagsMatch[0].length;
-      const afterTags = cleanText.substring(afterTagsIndex);
-      
-      // 유사 문헌 추출: 유사:《잡초》 형식
-      const similarMatch = afterTags.match(/유사[：:]\s*《([^》]+)》/);
-      if (similarMatch && similarMatch[1]) {
-        meta.similarBook = similarMatch[1].trim();
-      }
-      
-      // 별칭 추출: 유사 문헌 부분을 제외한 나머지
-      let aliasText = afterTags;
-      if (similarMatch) {
-        aliasText = afterTags.substring(0, similarMatch.index || 0);
-      }
-      
-      // 공백 정리 및 특수 문자 제거
-      const alias = aliasText
-        .replace(/\s+/g, ' ')
-        .replace(/[⚠️]/g, '')
-        .trim();
-      
-      if (alias && alias.length > 0) {
-        meta.alias = alias;
-      }
-    }
-
-    return meta;
+    return this.parseMetaInfo($titleRow, $titleRow.text());
   }
 
+  /**
+   * HTML에서 모든 레시피를 파싱하여 반환합니다.
+   * book만 제공하거나 liquor만 제공한 경우에도 처리합니다.
+   *
+   * @param html - 파싱할 HTML 문자열
+   * @returns 파싱된 레시피 정보 배열
+   */
   parseAllRecipes(html: string): RecipeInfo[] {
     const $ = cheerio.load(html);
     const recipes: RecipeInfo[] = [];
 
-    // 모든 레시피 테이블 파싱 (.table_each_rcp 또는 .table_rcp)
     $('.table_each_rcp, .table_rcp').each((_, element) => {
       const $recipeTable = $(element);
+      const titleInfo = this.extractTitleInfoForRecipe($recipeTable, $);
 
-      // 각 레시피의 메타데이터 추출
-      let book = '';
-      let liquor = '';
-      let $links: ReturnType<typeof $> | null = null;
-      
-      // 제목 추출 - parseSearchResults와 동일한 로직 사용
-      let titleText = '';
-      let $titleRow = $recipeTable.find('.tr_rcp_title').first();
-      if ($titleRow.length > 0) {
-        // 링크에서 추출 시도
-        $links = $titleRow.find('a');
-        if ($links.length >= 2) {
-          book = $links.eq(0).text().trim();
-          liquor = $links.eq(1).text().trim();
-          if (book && liquor) {
-            titleText = `${book} - ${liquor}`;
-          }
-        } else if ($links.length === 1) {
-          // 링크가 하나만 있는 경우
-          const linkText = $links.eq(0).text().trim();
-          titleText = $titleRow.find('td').text().trim();
-          // parseTitle로 파싱 시도
-          const [parsedBook, parsedLiquor] = this.parseTitle(titleText);
-          
-          // 링크 텍스트가 book인지 liquor인지 판단
-          if (parsedBook && linkText === parsedBook) {
-            book = linkText;
-            liquor = parsedLiquor || '';
-          } else if (parsedLiquor && linkText === parsedLiquor) {
-            liquor = linkText;
-            book = parsedBook || '';
-          } else {
-            // 판단이 어려우면 링크 텍스트를 book으로 가정 (book만 제공했을 가능성)
-            book = linkText;
-            liquor = parsedLiquor || '';
-          }
-        } else {
-          // 텍스트에서 추출
-          titleText = $titleRow.find('td').text().trim();
-          [book, liquor] = this.parseTitle(titleText);
-        }
-      } else {
-        // 대체 방법: 테이블의 첫 번째 행에서 제목 찾기
-        $titleRow = $recipeTable.find('tr').first();
-        titleText = $titleRow.find('td').first().text().trim();
-        [book, liquor] = this.parseTitle(titleText);
-      }
-
-      // book만 제공했을 때는 liquor가 없어도 허용
-      // liq만 제공했을 때는 book이 없어도 허용
-      // 둘 다 없으면 건너뛰기
-      if (!book && !liquor) {
+      if (!titleInfo.book && !titleInfo.liquor) {
         return;
       }
-      
-      // book만 있고 liquor가 없으면 빈 문자열로 설정
-      if (book && !liquor) {
-        liquor = '';
-      }
-      // liq만 있고 book이 없으면 빈 문자열로 설정
-      if (liquor && !book) {
-        book = '';
-      }
 
-      // dup 추출 (링크의 href나 target에서 추출)
-      let dup = 1;
-      if ($links && $links.length >= 2) {
-        const $liquorLink = $links.eq(1);
-        const href = $liquorLink.attr('href') || '';
-        const dupMatch = href.match(/dup=(\d+)/);
-        if (dupMatch) {
-          dup = parseInt(dupMatch[1], 10);
-        } else {
-          // target 속성에서 추출 시도 (예: '보덕공비망록백하주1')
-          const target = $liquorLink.attr('target') || '';
-          const targetDupMatch = target.match(/(\d+)$/);
-          if (targetDupMatch) {
-            dup = parseInt(targetDupMatch[1], 10);
-          }
-        }
-      }
+      const dup = this.extractDupFromTitleRow(titleInfo.$titleRow);
+      const recipeSteps = this.parseRecipeSteps($recipeTable, $);
+      const metaInfo = this.parseMetaInfo(
+        titleInfo.$titleRow,
+        titleInfo.titleText,
+      );
+      const { originalText, originalTextTranslation } =
+        this.extractOriginalTexts($recipeTable, titleInfo.$titleRow, html);
 
-      // 레시피 스텝 파싱
-      const recipeSteps: RecipeStep[] = [];
-
-      // 헤더 행에서 필드명 추출
-      const fieldNames: string[] = [];
-      const $headerRow = $recipeTable.find('.tr_rcp_field').first();
-      if ($headerRow.length > 0) {
-        $headerRow.find('td').each((_, cell) => {
-          const fieldName = $(cell).text().trim();
-          if (fieldName) {
-            fieldNames.push(fieldName);
-          }
-        });
-      }
-
-      // 데이터 행 파싱
-      $recipeTable.find('.tr_rcp_grid').each((_, row) => {
-        const $row = $(row);
-        const cells = $row
-          .find('td')
-          .map((_, cell) => $(cell).text().trim())
-          .get();
-
-        if (cells.length > 0) {
-          const recipeStep = this.parseRecipeRow(cells, fieldNames);
-          // 빈 레시피 스텝은 제외 (step이 없거나 materials가 비어있는 경우)
-          if (recipeStep.step || (recipeStep.materials && recipeStep.materials.length > 0)) {
-            recipeSteps.push(recipeStep);
-          }
-        }
-      });
-
-      if (recipeSteps.length > 0 || book || liquor) {
-        // 메타 정보 파싱
-        const metaInfo = this.parseSearchMetaInfo($titleRow, $titleRow.text());
-
-        // 원문 텍스트 및 해석 추출 (각 레시피 테이블의 HTML에서 직접 추출)
-        // 각 레시피 테이블마다 id_text_org_N, id_text_trs_N이 있을 수 있으므로,
-        // 레시피 테이블 내부나 다음 형제 요소에서 원문 텍스트와 해석 찾기
-        let originalText: string | undefined;
-        let originalTextTranslation: string | undefined;
-        
-        // 레시피 번호 추출 (toggle_org_button의 onclick에서)
-        let recipeIndex = 1; // 기본값
-        const $toggleButton = $titleRow.find('.toggle_org_button').first();
-        if ($toggleButton.length > 0) {
-          const onclick = $toggleButton.attr('onclick') || '';
-          const match = onclick.match(/ToggleText\(this,(\d+)\)/);
-          if (match && match[1]) {
-            recipeIndex = parseInt(match[1], 10);
-          }
-        }
-        
-        // 원문 텍스트 추출 (id_text_org_N)
-        const orgSelector = `#id_text_org_${recipeIndex}, [id^="id_text_org_"]`;
-        
-        // 방법 1: 레시피 테이블 내부에서 찾기
-        const $orgTextInTable = $recipeTable.find(orgSelector).first();
-        if ($orgTextInTable.length > 0) {
-          originalText = $orgTextInTable.text().trim();
-        }
-        
-        // 방법 2: 레시피 테이블 다음 형제 요소에서 찾기
-        if (!originalText || originalText.length <= 5) {
-          const $nextSibling = $recipeTable.next();
-          if ($nextSibling.length > 0) {
-            const $orgTextNext = $nextSibling.find(orgSelector).first();
-            if ($orgTextNext.length > 0) {
-              originalText = $orgTextNext.text().trim();
-            }
-          }
-        }
-        
-        // 방법 3: 레시피 테이블의 부모 요소에서 찾기
-        if (!originalText || originalText.length <= 5) {
-          const $parent = $recipeTable.parent();
-          const $orgTextParent = $parent.find(orgSelector).first();
-          if ($orgTextParent.length > 0) {
-            originalText = $orgTextParent.text().trim();
-          }
-        }
-        
-        // 방법 4: 전체 HTML에서 해당 레시피와 관련된 원문 텍스트 찾기
-        if (!originalText || originalText.length <= 5) {
-          const recipeTableHtml = $recipeTable.html() || '';
-          const recipeTableIndex = html.indexOf(recipeTableHtml);
-          if (recipeTableIndex >= 0) {
-            const afterTableHtml = html.substring(recipeTableIndex);
-            const $afterTable = cheerio.load(afterTableHtml);
-            const $orgTextAfter = $afterTable(orgSelector).first();
-            if ($orgTextAfter.length > 0) {
-              originalText = $orgTextAfter.text().trim();
-            }
-          }
-        }
-        
-        // 해석 텍스트 추출 (id_text_trs_N)
-        const trsSelector = `#id_text_trs_${recipeIndex}, [id^="id_text_trs_"]`;
-        
-        // 방법 1: 레시피 테이블 내부에서 찾기
-        const $trsTextInTable = $recipeTable.find(trsSelector).first();
-        if ($trsTextInTable.length > 0) {
-          originalTextTranslation = $trsTextInTable.text().trim();
-        }
-        
-        // 방법 2: 레시피 테이블 다음 형제 요소에서 찾기
-        if (!originalTextTranslation || originalTextTranslation.length <= 5) {
-          const $nextSibling = $recipeTable.next();
-          if ($nextSibling.length > 0) {
-            const $trsTextNext = $nextSibling.find(trsSelector).first();
-            if ($trsTextNext.length > 0) {
-              originalTextTranslation = $trsTextNext.text().trim();
-            }
-          }
-        }
-        
-        // 방법 3: 레시피 테이블의 부모 요소에서 찾기
-        if (!originalTextTranslation || originalTextTranslation.length <= 5) {
-          const $parent = $recipeTable.parent();
-          const $trsTextParent = $parent.find(trsSelector).first();
-          if ($trsTextParent.length > 0) {
-            originalTextTranslation = $trsTextParent.text().trim();
-          }
-        }
-        
-        // 방법 4: 전체 HTML에서 해당 레시피와 관련된 해석 텍스트 찾기
-        if (!originalTextTranslation || originalTextTranslation.length <= 5) {
-          const recipeTableHtml = $recipeTable.html() || '';
-          const recipeTableIndex = html.indexOf(recipeTableHtml);
-          if (recipeTableIndex >= 0) {
-            const afterTableHtml = html.substring(recipeTableIndex);
-            const $afterTable = cheerio.load(afterTableHtml);
-            const $trsTextAfter = $afterTable(trsSelector).first();
-            if ($trsTextAfter.length > 0) {
-              originalTextTranslation = $trsTextAfter.text().trim();
-            }
-          }
-        }
-        
-        if (originalText && originalText.length > 5) {
-          // 원문 텍스트가 있으면 사용
-        } else {
-          originalText = undefined;
-        }
-        
-        if (originalTextTranslation && originalTextTranslation.length > 5) {
-          // 해석 텍스트가 있으면 사용
-        } else {
-          originalTextTranslation = undefined;
-        }
-
-        // book만 제공했을 때는 liquor가 없어도 허용 (빈 문자열로 설정)
-        // liq만 제공했을 때는 book이 없어도 허용 (빈 문자열로 설정)
+      if (recipeSteps.length > 0 || titleInfo.book || titleInfo.liquor) {
         recipes.push({
-          book: book || '',
-          liquor: liquor || '',
+          book: titleInfo.book || '',
+          liquor: titleInfo.liquor || '',
           dup,
           recipe: recipeSteps,
           ...metaInfo,
@@ -1070,325 +315,35 @@ export class KoreansoolHtmlParser {
     return recipes;
   }
 
-  private parseSearchMetaInfo(
-    $titleRow: cheerio.Cheerio<any>,
-    titleText: string,
-  ): Partial<SearchResult> {
-    const meta: Partial<SearchResult> = {};
-    const $titleRowHtml = $titleRow.html() || '';
-
-    // org_text_and_error 전까지의 HTML만 추출
-    const orgTextIndex = $titleRowHtml.indexOf('<span class="org_text_and_error"');
-    const contentBeforeOrgText = orgTextIndex > 0 
-      ? $titleRowHtml.substring(0, orgTextIndex) 
-      : $titleRowHtml;
-    
-    const $content = cheerio.load(contentBeforeOrgText);
-
-    // 첫 번째 <a target="문헌 정보"> 태그에서 book 추출
-    const $bookLink = $content('a[target="문헌 정보"]').first();
-    if ($bookLink.length > 0) {
-      // book은 이미 parseTitle에서 추출되므로 여기서는 한자명만 확인
-    }
-
-    // 한자명 추출: (四時節酒) 형식에서 추출
-    // 술 이름 링크의 텍스트에서 찾기
-    const $liquorLink = $content('a[target*="상세 주방문"]').first();
-    if ($liquorLink.length > 0) {
-      const liquorText = $liquorLink.text().trim();
-      // 술 이름 바로 뒤의 괄호에서 한자 추출
-      const hanjaMatch = liquorText.match(/\(([^)]+)\)/);
-      if (hanjaMatch && hanjaMatch[1]) {
-        const hanjaText = hanjaMatch[1].trim();
-        // 한자 문자(한자 범위: \u4E00-\u9FFF)가 포함되어 있으면 한자명으로 간주
-        if (/[\u4E00-\u9FFF]/.test(hanjaText)) {
-          meta.liquorHanja = hanjaText;
-        }
-      }
-    }
-
-    // org_text_and_error 바로 앞의 상세 주방문 링크 찾기
-    const $detailRecipeLink = $content('a.a_nowrap[target="동일"][title="상세 주방문"]').last();
-    if ($detailRecipeLink.length > 0) {
-      const href = $detailRecipeLink.attr('href') || '';
-      if (href.includes('recipe.php')) {
-        const urlParams = new URLSearchParams(href.split('?')[1] || '');
-        const book = urlParams.get('book') || '';
-        const liq = urlParams.get('liq') || '';
-        const dup = urlParams.get('dup');
-        
-        if (book && liq) {
-          meta.detailRecipe = {
-            href: '/api/koreansool/recipes',
-            params: {
-              book: decodeURIComponent(book),
-              liquor: decodeURIComponent(liq),
-              dup: dup && dup !== '@' ? parseInt(dup, 10) : undefined,
-            },
-          };
-        }
-      }
-    }
-
-    // org_text_and_error 제거한 HTML로 파싱
-    const $titleRowClean = cheerio.load(contentBeforeOrgText);
-    const cleanText = $titleRowClean('body').text() || '';
-
-    // 태그 추출: [발효주,순곡주,단양주,느림,원본,유사] 형식
-    const tagsMatch = contentBeforeOrgText.match(/\[([^\]]+)\]/);
-    if (tagsMatch && tagsMatch[1]) {
-      // 태그 부분의 HTML을 파싱하여 링크 태그 제거
-      const tagsHtml = tagsMatch[1];
-      const $tags = cheerio.load(tagsHtml);
-      
-      // 원본, 참조, 유사 링크 태그 제거
-      $tags('a[href*="원본"], a[href*="참조"], a[href*="유사"], a[href*="anal"], a[href*="kfood-view"]').remove();
-      
-      const tagsText = $tags('body').text() || tagsHtml;
-      
-      meta.tags = tagsText
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter((tag) => {
-          const trimmed = tag.trim();
-          return trimmed && 
-                 trimmed !== '원본' && 
-                 trimmed !== '유사' && 
-                 trimmed !== '참조';
-        });
-    }
-
-    // 설명 추출: 태그를 제외하고 태그 앞과 뒤의 텍스트를 모두 포함
-    if (tagsMatch && tagsMatch.index !== undefined) {
-      // 상세 주방문 링크 제거한 HTML에서 설명 추출
-      const $descContent = cheerio.load(contentBeforeOrgText);
-      $descContent('a.a_nowrap[target="동일"][title="상세 주방문"]').remove();
-      const cleanTextForDesc = $descContent('body').text() || '';
-      
-      const tagsMatchForDesc = cleanTextForDesc.match(/\[([^\]]+)\]/);
-      if (tagsMatchForDesc && tagsMatchForDesc.index !== undefined) {
-        const beforeTags = cleanTextForDesc.substring(0, tagsMatchForDesc.index);
-        const afterTags = cleanTextForDesc.substring(tagsMatchForDesc.index + tagsMatchForDesc[0].length);
-        
-        // 태그 앞 텍스트 처리
-        const cleanedBefore = beforeTags
-          .replace(/^\d+\.\s*/, '') // "1. " 제거
-          .replace(/\(([^)]+)\)/g, '') // 한자명 괄호 제거 (설명에는 포함하지 않음)
-          // ⇐〚...〛 형식은 설명에 포함되므로 제거하지 않음
-          .trim();
-        
-        // 태그 뒤 텍스트 처리 (인용 부분 포함, 상세 주방문 링크 제외)
-        // HTML에서 이미 상세 주방문 링크 태그를 제거했으므로, ☞ 기호만 제거
-        const cleanedAfter = afterTags
-          .replace(/☞/g, '') // ☞ 제거
-          .trim();
-        
-        // 책이름과 술이름을 제외한 나머지가 설명
-        const parts = cleanedBefore.split(/\s+/).filter(part => part.trim().length > 0);
-        let description = '';
-        
-        if (parts.length > 2) {
-          description = parts.slice(2).join(' ').trim();
-        } else if (parts.length > 0) {
-          description = parts.join(' ').trim();
-        }
-        
-        // 태그 뒤의 텍스트도 설명에 추가 (인용 등)
-        if (cleanedAfter && cleanedAfter.length > 0) {
-          // 유사 문헌 부분은 제외 (별도 필드로 추출)
-          const similarMatch = cleanedAfter.match(/유사[：:]\s*《([^》]+)》/);
-          if (similarMatch) {
-            const beforeSimilar = cleanedAfter.substring(0, similarMatch.index || 0).trim();
-            if (beforeSimilar) {
-              description = description ? `${description} ${beforeSimilar}` : beforeSimilar;
-            }
-          } else {
-            description = description ? `${description} ${cleanedAfter}` : cleanedAfter;
-          }
-        }
-        
-        if (description && description.length > 0) {
-          meta.description = description.trim();
-        }
-      }
-    }
-
-    // 별칭 추출: [] 이후부터 org_text_and_error 전까지
-    if (tagsMatch && tagsMatch.index !== undefined) {
-      const afterTagsIndex = tagsMatch.index + tagsMatch[0].length;
-      const afterTags = cleanText.substring(afterTagsIndex);
-      
-      // 유사 문헌 추출: 유사:《잡초》 형식
-      const similarMatch = afterTags.match(/유사[：:]\s*《([^》]+)》/);
-      if (similarMatch && similarMatch[1]) {
-        meta.similarBook = similarMatch[1].trim();
-      }
-      
-      // 별칭 추출: 유사 문헌 부분을 제외한 나머지
-      let aliasText = afterTags;
-      if (similarMatch) {
-        aliasText = afterTags.substring(0, similarMatch.index || 0);
-      }
-      
-      // 공백 정리 및 특수 문자 제거
-      const alias = aliasText
-        .replace(/\s+/g, ' ')
-        .replace(/[⚠️]/g, '')
-        .trim();
-      
-      if (alias && alias.length > 0) {
-        meta.alias = alias;
-      }
-    }
-
-    return meta;
-  }
-
-  private parseTitle(title: string): [string, string] {
-    if (!title) {
-      return ['', ''];
-    }
-    
-    // ' - '로 분리 시도
-    const parts = title.split(' - ');
-    if (parts.length === 2) {
-      return [parts[0].trim(), parts[1].trim()];
-    }
-    
-    // ' -' 또는 '- '로 분리 시도
-    const parts2 = title.split(/[\s-]+/);
-    if (parts2.length >= 2) {
-      // 첫 번째와 나머지를 합쳐서 반환
-      const first = parts2[0].trim();
-      const rest = parts2.slice(1).join(' ').trim();
-      if (first && rest) {
-        return [first, rest];
-      }
-    }
-    
-    // 분리할 수 없으면 첫 번째를 book으로, 나머지를 liquor로
-    const trimmed = title.trim();
-    if (trimmed) {
-      // 공백이나 특수문자로 분리 시도
-      const match = trimmed.match(/^(.+?)\s+(.+)$/);
-      if (match) {
-        return [match[1].trim(), match[2].trim()];
-      }
-      // 분리할 수 없으면 전체를 liquor로
-      return ['', trimmed];
-    }
-    
-    return ['', ''];
-  }
-
-  private parseRecipeRow(cells: string[], fieldNames: string[]): RecipeStep {
-    const materials: RecipeMaterial[] = [];
-
-    // 필드명이 없으면 기본 필드명 사용 (하위 호환성)
-    const defaultFieldNames = [
-      '단계',
-      '일',
-      '발효',
-      '멥쌀',
-      '찹쌀',
-      '침미',
-      '물',
-      '장수',
-      '탕혼',
-      '냉혼',
-      '가공',
-      '살수',
-      '침숙',
-      '누룩',
-      '누룩형태',
-      '침국',
-      '녹국',
-      '밀분',
-      '석임',
-      '여과',
-      '가주',
-      '온혼',
-      '보쌈',
-      '밀봉',
-      '메모',
-    ];
-    const effectiveFieldNames =
-      fieldNames.length > 0 ? fieldNames : defaultFieldNames;
-
-    // 각 필드를 materials 배열에 추가
-    // cells[0]=단계(step), cells[1]=일(day)은 제외하고 나머지 필드 처리
-    for (let i = 2; i < cells.length && i < effectiveFieldNames.length; i++) {
-      const fieldName = effectiveFieldNames[i];
-      const value = cells[i];
-
-      // '단계'와 '일'은 제외하고, '메모'는 별도 필드로 처리
-      if (
-        fieldName &&
-        fieldName !== '단계' &&
-        fieldName !== '일' &&
-        fieldName !== '메모' &&
-        value &&
-        value.trim()
-      ) {
-        materials.push({
-          materialName: fieldName,
-          value: value.trim(),
-        });
-      }
-    }
-
-    // 메모 필드 찾기 (마지막 셀이거나 '메모' 필드 위치)
-    let memo: string | undefined;
-    const memoIndex = effectiveFieldNames.indexOf('메모');
-    if (memoIndex >= 0 && memoIndex < cells.length) {
-      memo = cells[memoIndex]?.trim() || undefined;
-    } else if (cells.length > effectiveFieldNames.length) {
-      // 필드명보다 셀이 더 많으면 마지막 셀을 메모로 처리
-      const lastCell = cells[cells.length - 1];
-      if (lastCell && lastCell.trim()) {
-        memo = lastCell.trim();
-      }
-    }
-
-    const step: RecipeStep = {
-      step: cells[0] || '',
-      day: this.parseNumber(cells[1]) || 0,
-      materials,
-      memo,
-    };
-
-    return step;
-  }
-
+  /**
+   * 참조 자료 목록 HTML을 파싱합니다.
+   *
+   * @param html - 파싱할 HTML 문자열
+   * @returns 파싱된 참조 자료 배열
+   */
   parseReferences(html: string): Reference[] {
     const $ = cheerio.load(html);
     const references: Reference[] = [];
 
-    // 테이블의 모든 행을 파싱
-    $('table tr').each((index, row) => {
+    $('table tr').each((_, row) => {
       const $row = $(row);
       const cells = $row
         .find('td')
         .map((_, cell) => $(cell).text().trim())
         .get();
 
-      // 헤더 행은 제외
       if (cells.length === 0 || $row.find('b').length > 0) {
         return;
       }
 
-      // 각 셀의 내용을 참조 정보로 파싱
-      const reference: Reference = {};
+      const reference: Reference = {
+        content: cells.join(' | '),
+      };
 
-      if (cells.length > 0) {
-        reference.content = cells.join(' | ');
-      }
-
-      // 링크가 있으면 추출
-      const links = $row.find('a');
-      if (links.length > 0) {
-        reference.link = links.first().attr('href') || undefined;
-        reference.title = links.first().text().trim() || reference.content;
+      const $links = $row.find('a');
+      if ($links.length > 0) {
+        reference.link = $links.first().attr('href') || undefined;
+        reference.title = $links.first().text().trim() || reference.content;
       } else {
         reference.title = cells[0] || undefined;
       }
@@ -1401,10 +356,1046 @@ export class KoreansoolHtmlParser {
     return references;
   }
 
+  // ========== Private Helper Methods ==========
+
+  /**
+   * 테이블에서 제목 정보를 추출합니다.
+   *
+   * @param $table - 파싱할 테이블 요소
+   * @param $ - cheerio 루트 객체
+   * @returns 추출된 제목 정보 (book, liquor, titleText, $titleRow)
+   */
+  private extractTitleInfo(
+    $table: cheerio.Cheerio<any>,
+    $: ReturnType<typeof cheerio.load>,
+  ): TitleInfo {
+    let $titleRow = $table.find('.tr_rcp_title').first();
+    let titleText = '';
+
+    if ($titleRow.length > 0) {
+      const $links = $titleRow.find('a');
+      if ($links.length >= 2) {
+        const book = $links.eq(0).text().trim();
+        const liquor = $links.eq(1).text().trim();
+        if (book && liquor) {
+          titleText = `${book} - ${liquor}`;
+        }
+      } else {
+        titleText = $titleRow.find('td').text().trim();
+      }
+    } else {
+      $titleRow = $table.find('tr').first();
+      titleText = $titleRow.find('td').first().text().trim();
+    }
+
+    const [book, liquor] = this.parseTitle(titleText);
+    return { book, liquor, titleText, $titleRow };
+  }
+
+  /**
+   * 레시피 테이블에서 제목 정보를 추출합니다.
+   * parseAllRecipes에서 사용하며, 링크가 하나만 있는 경우도 처리합니다.
+   *
+   * @param $recipeTable - 파싱할 레시피 테이블 요소
+   * @param $ - cheerio 루트 객체
+   * @returns 추출된 제목 정보 (book, liquor, titleText, $titleRow)
+   */
+  private extractTitleInfoForRecipe(
+    $recipeTable: cheerio.Cheerio<any>,
+    $: ReturnType<typeof cheerio.load>,
+  ): TitleInfo {
+    let $titleRow = $recipeTable.find('.tr_rcp_title').first();
+    let titleText = '';
+    let book = '';
+    let liquor = '';
+
+    if ($titleRow.length > 0) {
+      const $links = $titleRow.find('a');
+      if ($links.length >= 2) {
+        book = $links.eq(0).text().trim();
+        liquor = $links.eq(1).text().trim();
+        if (book && liquor) {
+          titleText = `${book} - ${liquor}`;
+        }
+      } else if ($links.length === 1) {
+        const linkText = $links.eq(0).text().trim();
+        titleText = $titleRow.find('td').text().trim();
+        const [parsedBook, parsedLiquor] = this.parseTitle(titleText);
+
+        if (parsedBook && linkText === parsedBook) {
+          book = linkText;
+          liquor = parsedLiquor || '';
+        } else if (parsedLiquor && linkText === parsedLiquor) {
+          liquor = linkText;
+          book = parsedBook || '';
+        } else {
+          book = linkText;
+          liquor = parsedLiquor || '';
+        }
+      } else {
+        titleText = $titleRow.find('td').text().trim();
+        [book, liquor] = this.parseTitle(titleText);
+      }
+    } else {
+      $titleRow = $recipeTable.find('tr').first();
+      titleText = $titleRow.find('td').first().text().trim();
+      [book, liquor] = this.parseTitle(titleText);
+    }
+
+    return { book, liquor, titleText, $titleRow };
+  }
+
+  /**
+   * 제목 행에서 중복 번호(dup)를 추출합니다.
+   * href의 dup 파라미터 또는 target 속성의 숫자를 확인합니다.
+   *
+   * @param $titleRow - 제목 행 요소
+   * @returns 추출된 dup 값, 없으면 기본값 1
+   */
+  private extractDupFromTitleRow($titleRow: cheerio.Cheerio<any>): number {
+    const $links = $titleRow.find('a');
+    if ($links.length < 2) {
+      return 1;
+    }
+
+    const $liquorLink = $links.eq(1);
+    const href = $liquorLink.attr('href') || '';
+    const dupMatch = href.match(/dup=(\d+)/);
+
+    if (dupMatch) {
+      return parseInt(dupMatch[1], 10);
+    }
+
+    const target = $liquorLink.attr('target') || '';
+    const targetDupMatch = target.match(/(\d+)$/);
+    return targetDupMatch ? parseInt(targetDupMatch[1], 10) : 1;
+  }
+
+  /**
+   * 제목 행에서 레시피 인덱스를 추출합니다.
+   * toggle_org_button의 onclick 속성에서 ToggleText 함수의 인자를 파싱합니다.
+   *
+   * @param $titleRow - 제목 행 요소
+   * @returns 추출된 레시피 인덱스, 없으면 기본값 1
+   */
+  private extractRecipeIndex($titleRow: cheerio.Cheerio<any>): number {
+    const $toggleButton = $titleRow.find('.toggle_org_button').first();
+    if ($toggleButton.length === 0) {
+      return 1;
+    }
+
+    const onclick = $toggleButton.attr('onclick') || '';
+    const match = onclick.match(/ToggleText\(this,(\d+)\)/);
+    return match && match[1] ? parseInt(match[1], 10) : 1;
+  }
+
+  /**
+   * 원문 텍스트와 해석 텍스트를 추출합니다.
+   * 여러 위치에서 텍스트를 찾기 위해 폴백 전략을 사용합니다.
+   *
+   * @param $table - 레시피 테이블 요소
+   * @param $titleRow - 제목 행 요소
+   * @param html - 전체 HTML 문자열
+   * @returns 원문 텍스트와 해석 텍스트가 담긴 객체
+   */
+  private extractOriginalTexts(
+    $table: cheerio.Cheerio<any>,
+    $titleRow: cheerio.Cheerio<any>,
+    html: string,
+  ): { originalText?: string; originalTextTranslation?: string } {
+    const recipeIndex = this.extractRecipeIndex($titleRow);
+    const orgSelector = `#id_text_org_${recipeIndex}, [id^="id_text_org_"]`;
+    const trsSelector = `#id_text_trs_${recipeIndex}, [id^="id_text_trs_"]`;
+
+    const originalText = this.findTextBySelector($table, orgSelector, html);
+    const originalTextTranslation = this.findTextBySelector(
+      $table,
+      trsSelector,
+      html,
+    );
+
+    return {
+      originalText: this.normalizeText(originalText),
+      originalTextTranslation: this.normalizeText(originalTextTranslation),
+    };
+  }
+
+  /**
+   * 셀렉터를 사용하여 텍스트를 찾습니다.
+   * 테이블 내부, 다음 형제 요소, 부모 요소, 전체 HTML 순서로 검색합니다.
+   *
+   * @param $table - 검색 시작점이 되는 테이블 요소
+   * @param selector - CSS 셀렉터 문자열
+   * @param html - 전체 HTML 문자열 (폴백 검색용)
+   * @returns 찾은 텍스트, 없으면 undefined
+   */
+  private findTextBySelector(
+    $table: cheerio.Cheerio<any>,
+    selector: string,
+    html: string,
+  ): string | undefined {
+    // 방법 1: 테이블 내부에서 찾기
+    const $textInTable = $table.find(selector).first();
+    if ($textInTable.length > 0) {
+      const text = $textInTable.text().trim();
+      if (text.length > KoreansoolHtmlParser.MIN_TEXT_LENGTH) {
+        return text;
+      }
+    }
+
+    // 방법 2: 테이블 다음 형제 요소에서 찾기
+    const $nextSibling = $table.next();
+    if ($nextSibling.length > 0) {
+      const $textNext = $nextSibling.find(selector).first();
+      if ($textNext.length > 0) {
+        const text = $textNext.text().trim();
+        if (text.length > KoreansoolHtmlParser.MIN_TEXT_LENGTH) {
+          return text;
+        }
+      }
+    }
+
+    // 방법 3: 테이블의 부모 요소에서 찾기
+    const $parent = $table.parent();
+    const $textParent = $parent.find(selector).first();
+    if ($textParent.length > 0) {
+      const text = $textParent.text().trim();
+      if (text.length > KoreansoolHtmlParser.MIN_TEXT_LENGTH) {
+        return text;
+      }
+    }
+
+    // 방법 4: 전체 HTML에서 해당 레시피와 관련된 텍스트 찾기
+    const tableHtml = $table.html() || '';
+    const tableIndex = html.indexOf(tableHtml);
+    if (tableIndex >= 0) {
+      const afterTableHtml = html.substring(tableIndex);
+      const $afterTable = cheerio.load(afterTableHtml);
+      const $textAfter = $afterTable(selector).first();
+      if ($textAfter.length > 0) {
+        const text = $textAfter.text().trim();
+        if (text.length > KoreansoolHtmlParser.MIN_TEXT_LENGTH) {
+          return text;
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * 텍스트를 정규화합니다.
+   * 최소 길이보다 짧은 텍스트는 undefined로 변환합니다.
+   *
+   * @param text - 정규화할 텍스트
+   * @returns 정규화된 텍스트 또는 undefined
+   */
+  private normalizeText(text: string | undefined): string | undefined {
+    return text && text.length > KoreansoolHtmlParser.MIN_TEXT_LENGTH
+      ? text
+      : undefined;
+  }
+
+  /**
+   * 컨테이너에서 레시피 단계들을 파싱합니다.
+   *
+   * @param $container - 파싱할 컨테이너 요소
+   * @param $ - cheerio 루트 객체
+   * @returns 파싱된 레시피 단계 배열
+   */
+  private parseRecipeSteps(
+    $container: cheerio.Cheerio<any>,
+    $: ReturnType<typeof cheerio.load>,
+  ): RecipeStep[] {
+    const fieldNames = this.extractFieldNames($container, $);
+    const recipe: RecipeStep[] = [];
+
+    $container.find('.tr_rcp_grid').each((_, row) => {
+      const $row = $(row);
+      const cells = $row
+        .find('td')
+        .map((_, cell) => $(cell).text().trim())
+        .get();
+
+      if (cells.length > 0) {
+        const recipeStep = this.parseRecipeRow(cells, fieldNames);
+        if (
+          recipeStep.step ||
+          (recipeStep.materials && recipeStep.materials.length > 0)
+        ) {
+          recipe.push(recipeStep);
+        }
+      }
+    });
+
+    return recipe;
+  }
+
+  /**
+   * 컨테이너에서 필드명을 추출합니다.
+   * 헤더 행(.tr_rcp_field)에서 필드명을 읽어오며, 없으면 기본 필드명을 사용합니다.
+   *
+   * @param $container - 파싱할 컨테이너 요소
+   * @param $ - cheerio 루트 객체
+   * @returns 필드명 배열
+   */
+  private extractFieldNames(
+    $container: cheerio.Cheerio<any>,
+    $: ReturnType<typeof cheerio.load>,
+  ): string[] {
+    const fieldNames: string[] = [];
+    const $headerRow = $container.find('.tr_rcp_field').first();
+
+    if ($headerRow.length > 0) {
+      $headerRow.find('td').each((_, cell) => {
+        const fieldName = $(cell).text().trim();
+        if (fieldName) {
+          fieldNames.push(fieldName);
+        }
+      });
+    }
+
+    return fieldNames.length > 0
+      ? fieldNames
+      : KoreansoolHtmlParser.DEFAULT_FIELD_NAMES;
+  }
+
+  /**
+   * 레시피 행 데이터를 파싱하여 RecipeStep 객체를 생성합니다.
+   *
+   * @param cells - 테이블 셀의 텍스트 배열
+   * @param fieldNames - 필드명 배열
+   * @returns 파싱된 레시피 단계 객체
+   */
+  private parseRecipeRow(cells: string[], fieldNames: string[]): RecipeStep {
+    const effectiveFieldNames =
+      fieldNames.length > 0
+        ? fieldNames
+        : KoreansoolHtmlParser.DEFAULT_FIELD_NAMES;
+    const materials: RecipeMaterial[] = [];
+
+    for (let i = 2; i < cells.length && i < effectiveFieldNames.length; i++) {
+      const fieldName = effectiveFieldNames[i];
+      const value = cells[i];
+
+      if (
+        fieldName &&
+        fieldName !== '단계' &&
+        fieldName !== '일' &&
+        fieldName !== '메모' &&
+        value?.trim()
+      ) {
+        materials.push({
+          materialName: fieldName,
+          value: value.trim(),
+        });
+      }
+    }
+
+    const memo = this.extractMemo(cells, effectiveFieldNames);
+
+    return {
+      step: cells[0] || '',
+      day: this.parseNumber(cells[1]) || 0,
+      materials,
+      memo,
+    };
+  }
+
+  /**
+   * 셀 배열에서 메모 필드를 추출합니다.
+   * 필드명에 '메모'가 있으면 해당 위치에서 추출하고, 없으면 마지막 셀을 메모로 간주합니다.
+   *
+   * @param cells - 테이블 셀의 텍스트 배열
+   * @param fieldNames - 필드명 배열
+   * @returns 추출된 메모 텍스트 또는 undefined
+   */
+  private extractMemo(
+    cells: string[],
+    fieldNames: string[],
+  ): string | undefined {
+    const memoIndex = fieldNames.indexOf('메모');
+    if (memoIndex >= 0 && memoIndex < cells.length) {
+      return cells[memoIndex]?.trim() || undefined;
+    }
+
+    if (cells.length > fieldNames.length) {
+      const lastCell = cells[cells.length - 1];
+      return lastCell?.trim() || undefined;
+    }
+
+    return undefined;
+  }
+
+  /**
+   * 제목 행에서 메타 정보를 파싱합니다.
+   * 한자명, 상세 레시피 링크, 태그, 설명, 별칭, 유사 문헌 등을 추출합니다.
+   *
+   * @param $titleRow - 제목 행 요소
+   * @param titleText - 제목 텍스트
+   * @returns 파싱된 메타 정보 객체
+   */
+  private parseMetaInfo(
+    $titleRow: cheerio.Cheerio<any>,
+    titleText: string,
+  ): Partial<SearchResult> {
+    const meta: Partial<SearchResult> = {};
+    const $titleRowHtml = $titleRow.html() || '';
+    const contentBeforeOrgText =
+      this.extractContentBeforeOrgText($titleRowHtml);
+    const $content = cheerio.load(contentBeforeOrgText);
+
+    this.extractLiquorHanja($content, meta);
+    this.extractDetailRecipe($content, meta);
+    this.extractTags(contentBeforeOrgText, meta);
+    this.extractDescription(contentBeforeOrgText, meta);
+    this.extractAliasAndSimilarBook(contentBeforeOrgText, meta);
+
+    return meta;
+  }
+
+  /**
+   * HTML에서 org_text_and_error 스팬 이전의 내용만 추출합니다.
+   *
+   * @param html - 원본 HTML 문자열
+   * @returns org_text_and_error 이전의 HTML 문자열
+   */
+  private extractContentBeforeOrgText(html: string): string {
+    const orgTextIndex = html.indexOf('<span class="org_text_and_error"');
+    return orgTextIndex > 0 ? html.substring(0, orgTextIndex) : html;
+  }
+
+  /**
+   * 술 이름의 한자명을 추출합니다.
+   * 상세 주방문 링크의 텍스트에서 괄호 안의 한자를 찾습니다.
+   *
+   * @param $content - 파싱할 HTML 컨텐츠
+   * @param meta - 메타 정보 객체 (결과를 이 객체에 추가)
+   */
+  private extractLiquorHanja(
+    $content: ReturnType<typeof cheerio.load>,
+    meta: Partial<SearchResult>,
+  ): void {
+    const $liquorLink = $content('a[target*="상세 주방문"]').first();
+    if ($liquorLink.length === 0) {
+      return;
+    }
+
+    const liquorText = $liquorLink.text().trim();
+    const hanjaMatch = liquorText.match(/\(([^)]+)\)/);
+    if (hanjaMatch?.[1]) {
+      const hanjaText = hanjaMatch[1].trim();
+      if (/[\u4E00-\u9FFF]/.test(hanjaText)) {
+        meta.liquorHanja = hanjaText;
+      }
+    }
+  }
+
+  /**
+   * 상세 주방문 링크를 추출하여 메타 정보에 추가합니다.
+   * recipe.php 링크에서 book, liq, dup 파라미터를 파싱합니다.
+   *
+   * @param $content - 파싱할 HTML 컨텐츠
+   * @param meta - 메타 정보 객체 (결과를 이 객체에 추가)
+   */
+  private extractDetailRecipe(
+    $content: ReturnType<typeof cheerio.load>,
+    meta: Partial<SearchResult>,
+  ): void {
+    const $detailRecipeLink = $content(
+      'a.a_nowrap[target="동일"][title="상세 주방문"]',
+    ).last();
+    if ($detailRecipeLink.length === 0) {
+      return;
+    }
+
+    const href = $detailRecipeLink.attr('href') || '';
+    if (!href.includes('recipe.php')) {
+      return;
+    }
+
+    const queryString = href.includes('?')
+      ? href.split('?')[1].split('#')[0]
+      : '';
+    const urlParams = new URLSearchParams(queryString);
+    const book = urlParams.get('book') || '';
+    const liq = urlParams.get('liq') || '';
+    const dup = urlParams.get('dup');
+
+    if (book && book !== '@' && liq && liq !== '@') {
+      meta.detailRecipe = {
+        href: '/api/koreansool/recipes',
+        params: {
+          book: decodeURIComponent(book),
+          liquor: decodeURIComponent(liq),
+          dup: dup && dup !== '@' ? parseInt(dup, 10) : undefined,
+        },
+      };
+    }
+  }
+
+  /**
+   * 태그 정보를 추출합니다.
+   * [발효주,순곡주,단양주] 형식의 태그를 파싱하고, 링크 태그는 제거합니다.
+   *
+   * @param html - 파싱할 HTML 문자열
+   * @param meta - 메타 정보 객체 (결과를 이 객체에 추가)
+   */
+  private extractTags(html: string, meta: Partial<SearchResult>): void {
+    const tagsMatch = html.match(/\[([^\]]+)\]/);
+    if (!tagsMatch?.[1]) {
+      return;
+    }
+
+    const tagsHtml = tagsMatch[1];
+    const $tags = cheerio.load(tagsHtml);
+    $tags(
+      'a[href*="원본"], a[href*="참조"], a[href*="유사"], a[href*="anal"], a[href*="kfood-view"]',
+    ).remove();
+
+    const tagsText = $tags('body').text() || tagsHtml;
+    meta.tags = tagsText
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter((tag) => {
+        const trimmed = tag.trim();
+        return (
+          trimmed &&
+          trimmed !== '원본' &&
+          trimmed !== '유사' &&
+          trimmed !== '참조'
+        );
+      });
+  }
+
+  /**
+   * 설명 텍스트를 추출합니다.
+   * 태그 앞뒤의 텍스트를 모두 포함하며, 한자명 괄호와 특수 문자를 제거합니다.
+   *
+   * @param html - 파싱할 HTML 문자열
+   * @param meta - 메타 정보 객체 (결과를 이 객체에 추가)
+   */
+  private extractDescription(html: string, meta: Partial<SearchResult>): void {
+    const tagsMatch = html.match(/\[([^\]]+)\]/);
+    if (!tagsMatch?.index) {
+      return;
+    }
+
+    const $descContent = cheerio.load(html);
+    $descContent('a.a_nowrap[target="동일"][title="상세 주방문"]').remove();
+    const cleanTextForDesc = $descContent('body').text() || '';
+
+    const tagsMatchForDesc = cleanTextForDesc.match(/\[([^\]]+)\]/);
+    if (!tagsMatchForDesc?.index) {
+      return;
+    }
+
+    const beforeTags = cleanTextForDesc.substring(0, tagsMatchForDesc.index);
+    const afterTags = cleanTextForDesc.substring(
+      tagsMatchForDesc.index + tagsMatchForDesc[0].length,
+    );
+
+    const cleanedBefore = beforeTags
+      .replace(/^\d+\.\s*/, '')
+      .replace(/\(([^)]+)\)/g, '')
+      .trim();
+
+    const cleanedAfter = afterTags.replace(/☞/g, '').trim();
+
+    const parts = cleanedBefore
+      .split(/\s+/)
+      .filter((part) => part.trim().length > 0);
+    let description =
+      parts.length > 2
+        ? parts.slice(2).join(' ').trim()
+        : parts.join(' ').trim();
+
+    if (cleanedAfter) {
+      const similarMatch = cleanedAfter.match(/유사[：:]\s*《([^》]+)》/);
+      if (similarMatch) {
+        const beforeSimilar = cleanedAfter
+          .substring(0, similarMatch.index || 0)
+          .trim();
+        if (beforeSimilar) {
+          description = description
+            ? `${description} ${beforeSimilar}`
+            : beforeSimilar;
+        }
+      } else {
+        description = description
+          ? `${description} ${cleanedAfter}`
+          : cleanedAfter;
+      }
+    }
+
+    if (description) {
+      meta.description = description.trim();
+    }
+  }
+
+  /**
+   * 별칭과 유사 문헌 정보를 추출합니다.
+   * 태그 이후의 텍스트에서 "유사:《잡초》" 형식의 유사 문헌과 별칭을 파싱합니다.
+   *
+   * @param html - 파싱할 HTML 문자열
+   * @param meta - 메타 정보 객체 (결과를 이 객체에 추가)
+   */
+  private extractAliasAndSimilarBook(
+    html: string,
+    meta: Partial<SearchResult>,
+  ): void {
+    const tagsMatch = html.match(/\[([^\]]+)\]/);
+    if (!tagsMatch?.index) {
+      return;
+    }
+
+    const $titleRowClean = cheerio.load(html);
+    const cleanText = $titleRowClean('body').text() || '';
+    const afterTagsIndex = tagsMatch.index + tagsMatch[0].length;
+    const afterTags = cleanText.substring(afterTagsIndex);
+
+    const similarMatch = afterTags.match(/유사[：:]\s*《([^》]+)》/);
+    if (similarMatch?.[1]) {
+      meta.similarBook = similarMatch[1].trim();
+    }
+
+    const aliasText = similarMatch
+      ? afterTags.substring(0, similarMatch.index || 0)
+      : afterTags;
+
+    const alias = aliasText.replace(/\s+/g, ' ').replace(/[⚠️]/g, '').trim();
+    if (alias) {
+      meta.alias = alias;
+    }
+  }
+
+  /**
+   * 문헌 행을 파싱하여 Book 객체를 생성합니다.
+   *
+   * @param $secondCell - 두 번째 셀 요소 (문헌 정보가 있는 셀)
+   * @param $ - cheerio 루트 객체
+   * @returns 파싱된 Book 객체
+   */
+  private parseBookRow(
+    $secondCell: cheerio.Cheerio<any>,
+    $: ReturnType<typeof cheerio.load>,
+  ): Book {
+    const book: Partial<Book> = {};
+    const $allLinks = $secondCell.find('a');
+    const nameLink = $allLinks.first();
+
+    if (nameLink.length > 0) {
+      book.name = nameLink.text().trim();
+      book.recipeLink = nameLink.attr('href') || undefined;
+    }
+
+    this.extractBookHanja($secondCell, book);
+    this.extractAuthorAndYear($secondCell, book);
+    this.extractBookLinks($secondCell, $allLinks, $, book);
+    this.extractBookDescription($secondCell, book);
+
+    return book as Book;
+  }
+
+  /**
+   * 문헌의 한자명을 추출합니다.
+   * 첫 번째 줄에서 링크 다음의 괄호 안 텍스트를 찾습니다.
+   *
+   * @param $secondCell - 두 번째 셀 요소
+   * @param book - Book 객체 (결과를 이 객체에 추가)
+   */
+  private extractBookHanja(
+    $secondCell: cheerio.Cheerio<any>,
+    book: Partial<Book>,
+  ): void {
+    const firstLine = $secondCell.html() || '';
+    const hanjaMatch = firstLine.match(/<a[^>]*>([^<]+)<\/a>\s*\(([^)]+)\)/);
+    if (hanjaMatch?.[2]) {
+      book.nameHanja = hanjaMatch[2].trim();
+    }
+  }
+
+  /**
+   * 저자와 연도 정보를 추출합니다.
+   * 첫 번째 br과 두 번째 br 사이의 텍스트에서 "최치원(崔致遠) 886년" 형식을 파싱합니다.
+   *
+   * @param $secondCell - 두 번째 셀 요소
+   * @param book - Book 객체 (결과를 이 객체에 추가)
+   */
+  private extractAuthorAndYear(
+    $secondCell: cheerio.Cheerio<any>,
+    book: Partial<Book>,
+  ): void {
+    const secondCellHtml = $secondCell.html() || '';
+    const brSplits = secondCellHtml.split(/<br\s*\/?>/i);
+    let authorYearText = '';
+
+    if (brSplits.length >= 3) {
+      authorYearText = this.extractTextFromHtml(brSplits[1]);
+    } else if (brSplits.length >= 2) {
+      const afterFirstBrHtml = brSplits[1];
+      const $afterFirstBr = cheerio.load(afterFirstBrHtml);
+      $afterFirstBr('a').remove();
+      const afterBrText = $afterFirstBr('body').text().trim();
+      authorYearText =
+        afterBrText.split('\n')[0].trim() ||
+        afterFirstBrHtml
+          .replace(/<[^>]+>/g, '')
+          .trim()
+          .split('\n')[0]
+          .trim();
+    }
+
+    if (authorYearText) {
+      this.parseAuthorYearText(authorYearText, book);
+    }
+  }
+
+  /**
+   * HTML에서 텍스트만 추출합니다.
+   * 링크 태그를 제거한 후 텍스트를 반환합니다.
+   *
+   * @param html - 파싱할 HTML 문자열
+   * @returns 추출된 텍스트
+   */
+  private extractTextFromHtml(html: string): string {
+    const $parsed = cheerio.load(html);
+    $parsed('a').remove();
+    const text = $parsed('body').text().trim();
+    return text || html.replace(/<[^>]+>/g, '').trim();
+  }
+
+  /**
+   * 저자와 연도가 포함된 텍스트를 파싱합니다.
+   * 여러 패턴을 시도하여 저자명, 저자 한자, 연도를 추출합니다.
+   *
+   * @param text - 파싱할 텍스트
+   * @param book - Book 객체 (결과를 이 객체에 추가)
+   */
+  private parseAuthorYearText(text: string, book: Partial<Book>): void {
+    const cleaned = text
+      .replace(/^[(),\s\n\r\t,]+/, '')
+      .trim()
+      .replace(/[\s\n\r\t]+/g, ' ')
+      .trim();
+
+    const fullPatternMatch = this.matchAuthorYearPattern(cleaned);
+    if (fullPatternMatch) {
+      book.author = fullPatternMatch.author.trim();
+      book.authorHanja = fullPatternMatch.authorHanja.trim();
+      book.year = parseInt(fullPatternMatch.year, 10);
+      return;
+    }
+
+    const yearMatch = this.matchYear(cleaned);
+    if (yearMatch) {
+      book.year = parseInt(yearMatch.year, 10);
+      const beforeYear = cleaned.substring(0, yearMatch.index).trim();
+      if (beforeYear) {
+        const authorMatch = beforeYear.match(/^(.+?)\s*\(([^)]+)\)\s*$/u);
+        if (authorMatch) {
+          book.author = authorMatch[1].trim();
+          book.authorHanja = authorMatch[2].trim();
+        } else {
+          book.author = beforeYear;
+        }
+      }
+    } else {
+      const authorMatch = cleaned.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+      if (authorMatch) {
+        book.author = authorMatch[1].trim();
+        book.authorHanja = authorMatch[2].trim();
+      } else if (cleaned.trim()) {
+        const fallbackMatch = cleaned.match(
+          /^(.+?)\s*\(([^)]+)\)\s*(\d{3,4})\s*년/u,
+        );
+        if (fallbackMatch) {
+          book.author = fallbackMatch[1].trim();
+          book.authorHanja = fallbackMatch[2].trim();
+          book.year = parseInt(fallbackMatch[3], 10);
+        } else {
+          book.author = cleaned.trim();
+        }
+      }
+    }
+  }
+
+  /**
+   * 저자명, 저자 한자, 연도가 모두 포함된 패턴을 매칭합니다.
+   * 여러 변형 패턴을 시도합니다.
+   *
+   * @param text - 매칭할 텍스트
+   * @returns 매칭 성공 시 { author, authorHanja, year } 객체, 실패 시 null
+   */
+  private matchAuthorYearPattern(
+    text: string,
+  ): { author: string; authorHanja: string; year: string } | null {
+    const patterns = [
+      /^(.+?)\s*\(([^)]+)\)\s*(\d{3,4})\s*년\s*$/u,
+      /^(.+?)\s*\(([^)]+)\)\s*(\d{3,4})년\s*$/u,
+      /^(.+?)\s*\(([^)]+)\)\s*(\d{3,4})\s*년$/u,
+      /^(.+?)\s*\(([^)]+)\)\s*(\d{3,4})년$/u,
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match) {
+        return { author: match[1], authorHanja: match[2], year: match[3] };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * 텍스트에서 연도를 찾습니다.
+   * "886년" 형식의 패턴을 여러 방법으로 시도합니다.
+   *
+   * @param text - 검색할 텍스트
+   * @returns 매칭 성공 시 { year, index } 객체, 실패 시 null
+   */
+  private matchYear(text: string): { year: string; index: number } | null {
+    const patterns = [/(\d{3,4})\s*년/u, /(\d{3,4})년/u];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match && match.index !== undefined) {
+        return { year: match[1], index: match.index };
+      }
+    }
+
+    const numberMatch = text.match(/(\d{3,4})/);
+    const yearCharIndex = text.indexOf('년');
+    if (
+      numberMatch &&
+      yearCharIndex !== -1 &&
+      numberMatch.index !== undefined
+    ) {
+      const numberEndIndex = numberMatch.index + numberMatch[0].length;
+      if (
+        yearCharIndex >= numberEndIndex &&
+        yearCharIndex <= numberEndIndex + 2
+      ) {
+        return { year: numberMatch[1], index: numberMatch.index };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * 문헌의 원본 링크와 참조 링크를 추출합니다.
+   *
+   * @param $secondCell - 두 번째 셀 요소
+   * @param $allLinks - 모든 링크 요소
+   * @param $ - cheerio 루트 객체
+   * @param book - Book 객체 (결과를 이 객체에 추가)
+   */
+  private extractBookLinks(
+    $secondCell: cheerio.Cheerio<any>,
+    $allLinks: cheerio.Cheerio<any>,
+    $: ReturnType<typeof cheerio.load>,
+    book: Partial<Book>,
+  ): void {
+    const originalLink = this.findLinkByCriteria($secondCell, $allLinks, $, [
+      '원본',
+      '책원본',
+    ]);
+    if (originalLink) {
+      book.originalLink = originalLink;
+    }
+
+    const referenceLink = this.findLinkByCriteria($secondCell, $allLinks, $, [
+      '참조',
+      '책참조',
+    ]);
+    if (referenceLink) {
+      book.referenceLink = referenceLink;
+    }
+  }
+
+  /**
+   * 키워드를 기반으로 링크를 찾습니다.
+   * target 속성, title 속성, 링크 텍스트에서 키워드를 검색합니다.
+   *
+   * @param $cell - 검색할 셀 요소
+   * @param $allLinks - 모든 링크 요소
+   * @param $ - cheerio 루트 객체
+   * @param keywords - 검색할 키워드 배열
+   * @returns 찾은 링크의 href 속성 값 또는 undefined
+   */
+  private findLinkByCriteria(
+    $cell: cheerio.Cheerio<any>,
+    $allLinks: cheerio.Cheerio<any>,
+    $: ReturnType<typeof cheerio.load>,
+    keywords: string[],
+  ): string | undefined {
+    const selector = keywords.map((kw) => `a[target*="${kw}"]`).join(', ');
+    let link = $cell.find(selector).attr('href');
+
+    if (!link) {
+      $allLinks.each((_, linkEl) => {
+        const $link = $(linkEl);
+        const target = $link.attr('target') || '';
+        const title = $link.attr('title') || '';
+        const linkText = $link.text().trim();
+
+        if (
+          keywords.some(
+            (kw) =>
+              target.includes(kw) ||
+              title.includes(`${kw} 보기`) ||
+              linkText === kw,
+          )
+        ) {
+          link = $link.attr('href');
+          return false;
+        }
+      });
+    }
+
+    return link;
+  }
+
+  /**
+   * 문헌의 설명을 추출합니다.
+   * 두 번째 br 태그 이후의 텍스트를 설명으로 간주합니다.
+   *
+   * @param $secondCell - 두 번째 셀 요소
+   * @param book - Book 객체 (결과를 이 객체에 추가)
+   */
+  private extractBookDescription(
+    $secondCell: cheerio.Cheerio<any>,
+    book: Partial<Book>,
+  ): void {
+    const secondCellHtml = $secondCell.html() || '';
+    let descriptionText = '';
+
+    const doubleBrMatch = secondCellHtml.match(/<br>\s*<br>/);
+    if (doubleBrMatch?.index !== undefined) {
+      const afterDoubleBrHtml = secondCellHtml.substring(
+        doubleBrMatch.index + doubleBrMatch[0].length,
+      );
+      const $afterDoubleBr = cheerio.load(afterDoubleBrHtml);
+      $afterDoubleBr('a').remove();
+      descriptionText = $afterDoubleBr('body')
+        .text()
+        .trim()
+        .replace(/<br\s*\/?>/g, '')
+        .trim();
+    } else {
+      const brs = $secondCell.find('br');
+      if (brs.length >= 2) {
+        const firstBrIndex = secondCellHtml.indexOf('<br>');
+        if (firstBrIndex >= 0) {
+          const afterFirstBr = secondCellHtml.substring(firstBrIndex + 4);
+          const secondBrIndex = afterFirstBr.indexOf('<br>');
+          if (secondBrIndex >= 0) {
+            const afterSecondBrHtml = afterFirstBr.substring(secondBrIndex + 4);
+            const $afterSecondBr = cheerio.load(afterSecondBrHtml);
+            $afterSecondBr('a').remove();
+            descriptionText = $afterSecondBr('body').text().trim();
+          }
+        }
+      }
+    }
+
+    if (descriptionText) {
+      descriptionText = this.cleanBookDescription(descriptionText, book);
+      if (descriptionText) {
+        book.description = descriptionText;
+      }
+    }
+  }
+
+  /**
+   * 문헌 설명에서 저자와 연도 정보를 제거합니다.
+   * 중복된 정보를 정리하여 깔끔한 설명만 남깁니다.
+   *
+   * @param description - 정리할 설명 텍스트
+   * @param book - Book 객체 (저자/연도 정보 참조용)
+   * @returns 정리된 설명 텍스트
+   */
+  private cleanBookDescription(
+    description: string,
+    book: Partial<Book>,
+  ): string {
+    let cleaned = description;
+
+    if (book.author) {
+      if (book.authorHanja) {
+        const fullAuthorPattern = `${book.author.replace(/[()]/g, '\\$&')}\\s*\\(${book.authorHanja.replace(/[()]/g, '\\$&')}\\)`;
+        cleaned = cleaned
+          .replace(new RegExp(fullAuthorPattern, 'g'), '')
+          .trim();
+      }
+      cleaned = cleaned
+        .replace(new RegExp(book.author.replace(/[()]/g, '\\$&'), 'g'), '')
+        .trim();
+      if (book.authorHanja) {
+        cleaned = cleaned
+          .replace(
+            new RegExp(book.authorHanja.replace(/[()]/g, '\\$&'), 'g'),
+            '',
+          )
+          .trim();
+      }
+    }
+
+    if (book.year) {
+      cleaned = cleaned.replace(new RegExp(`${book.year}년`, 'g'), '').trim();
+    }
+
+    return cleaned.replace(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * 제목 텍스트를 book과 liquor로 분리합니다.
+   * 여러 구분자를 시도하여 분리합니다.
+   *
+   * @param title - 분리할 제목 텍스트
+   * @returns [book, liquor] 튜플
+   */
+  private parseTitle(title: string): [string, string] {
+    if (!title) {
+      return ['', ''];
+    }
+
+    const parts = title.split(' - ');
+    if (parts.length === 2) {
+      return [parts[0].trim(), parts[1].trim()];
+    }
+
+    const parts2 = title.split(/[\s-]+/);
+    if (parts2.length >= 2) {
+      const first = parts2[0].trim();
+      const rest = parts2.slice(1).join(' ').trim();
+      if (first && rest) {
+        return [first, rest];
+      }
+    }
+
+    const trimmed = title.trim();
+    if (trimmed) {
+      const match = trimmed.match(/^(.+?)\s+(.+)$/);
+      if (match) {
+        return [match[1].trim(), match[2].trim()];
+      }
+      return ['', trimmed];
+    }
+
+    return ['', ''];
+  }
+
+  /**
+   * 문자열을 숫자로 변환합니다.
+   *
+   * @param value - 변환할 문자열
+   * @returns 변환된 숫자, 실패 시 undefined
+   */
   private parseNumber(value: string | undefined): number | undefined {
     if (!value) return undefined;
     const num = parseFloat(value);
     return isNaN(num) ? undefined : num;
   }
 }
-

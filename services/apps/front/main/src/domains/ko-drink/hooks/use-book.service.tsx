@@ -1,5 +1,9 @@
-import { useEffect, useMemo } from 'react';
-import { useBooksQuery, useBookQuery } from './query/use-books.query';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  useBooksQuery,
+  useBookQuery,
+  useBookImageQuery,
+} from './query/use-books.query';
 import { useBooksStore } from './store/use-books.store';
 import type { PaginationOptions } from '@ko-drink/shared';
 import type { Book } from '@ko-drink/shared';
@@ -22,12 +26,18 @@ export function useBookDetailService(bookName: string) {
   // 스토어에 데이터가 있으면 먼저 스토어에서 찾기
   const bookFromStore = useMemo(() => {
     if (!bookName || !isLoaded || books.length === 0) return null;
-    
+
     const decodedName = decodeURIComponent(bookName);
-    return books.find((book: Book) => {
-      if (!book || !book.name) return false;
-      return book.name === decodedName || book.name === bookName || book.name.trim() === decodedName.trim();
-    }) || null;
+    return (
+      books.find((book: Book) => {
+        if (!book || !book.name) return false;
+        return (
+          book.name === decodedName ||
+          book.name === bookName ||
+          book.name.trim() === decodedName.trim()
+        );
+      }) || null
+    );
   }, [bookName, books, isLoaded]);
 
   // 스토어에 있으면 스토어 데이터 사용, 없으면 쿼리 결과 사용
@@ -49,7 +59,7 @@ export function useBookDetailService(bookName: string) {
 export function useBooksStoreService() {
   const { books, isLoaded, setBooks, setLoading } = useBooksStore();
   const { data: booksData, isLoading: booksLoading } = useBooksQuery(
-    !isLoaded ? { page: 1, limit: 200 } : undefined
+    !isLoaded ? { page: 1, limit: 200 } : undefined,
   );
 
   // 문헌 목록을 스토어에 저장
@@ -74,3 +84,44 @@ export function useBooksStoreService() {
   };
 }
 
+/**
+ * 문헌 이미지를 로드하는 서비스
+ * Blob을 Blob URL로 변환하여 반환
+ */
+export function useBookImageService(bookName: string | undefined) {
+  const bookImageQuery = useBookImageQuery(bookName || '');
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    if (!bookImageQuery.data) {
+      setImageUrl(null);
+      setImageError(false);
+      return;
+    }
+
+    // Blob을 Blob URL로 변환
+    const objectUrl = URL.createObjectURL(bookImageQuery.data);
+    setImageUrl(objectUrl);
+    setImageError(false);
+
+    // Cleanup: Blob URL 해제
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [bookImageQuery.data]);
+
+  useEffect(() => {
+    if (bookImageQuery.error) {
+      setImageError(true);
+      setImageUrl(null);
+    }
+  }, [bookImageQuery.error]);
+
+  return {
+    imageUrl,
+    imageError,
+    isLoading: bookImageQuery.isLoading,
+    error: bookImageQuery.error,
+  };
+}

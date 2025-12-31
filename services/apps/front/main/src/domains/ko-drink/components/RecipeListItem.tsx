@@ -149,7 +149,7 @@ export function RecipeListItem({ item, searchText }: RecipeListItemProps) {
       {/* 세 번째 줄: {설명} */}
       {item.description && (
         <p className="text-sm text-gray-700 dark:text-gray-300">
-          {parseDescriptionWithBadges(item.description, searchText)}
+          {parseDescriptionWithBadges(item.description, searchText, item.liquor)}
         </p>
       )}
       

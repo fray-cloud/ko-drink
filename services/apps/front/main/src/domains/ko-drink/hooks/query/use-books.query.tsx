@@ -61,3 +61,16 @@ export function useBookQuery(bookName: string) {
   });
 }
 
+export function useBookImageQuery(bookName: string) {
+  return useQuery<Blob>({
+    queryKey: ['bookImage', bookName],
+    queryFn: async () => {
+      if (!bookName) throw new Error('Book name is required');
+      return await apiClient.getBookImage(bookName);
+    },
+    enabled: !!bookName,
+    staleTime: Infinity, // 이미지는 변경되지 않으므로 캐시 유지
+    gcTime: 5 * 60 * 1000, // 5분간 캐시 유지
+  });
+}
+

@@ -4,6 +4,7 @@ import type { RecipeStep } from '@ko-drink/shared';
 import { useMemo } from 'react';
 import React from 'react';
 import { highlightText, parseDescriptionWithBadges } from '../../common/utils/text.utils';
+import { KO_DRINK_ROUTES } from '../router';
 
 interface RecipeDetailViewProps {
   book: string;
@@ -64,6 +65,10 @@ export function RecipeDetailView({ book, liquor, dup, searchText }: RecipeDetail
   const { getEffectiveTheme } = useThemeStore();
   const isDark = getEffectiveTheme() === 'dark';
 
+  const bookDetailUrl = book
+    ? `${KO_DRINK_ROUTES.DETAIL}?type=book&name=${encodeURIComponent(book)}`
+    : '';
+
   if (isLoading) {
     return <div className="text-center py-8 text-gray-700 dark:text-gray-300">로딩 중...</div>;
   }
@@ -84,6 +89,32 @@ export function RecipeDetailView({ book, liquor, dup, searchText }: RecipeDetail
         {recipe.liquorHanja && (
           <p className="text-xl text-gray-700 dark:text-gray-300 mt-1">({recipe.liquorHanja})</p>
         )}
+        {book && bookDetailUrl && (
+          <div className="mt-3">
+            <a
+              href={bookDetailUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-lg text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline transition-colors cursor-pointer"
+            >
+              <span>《{book}》</span>
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                />
+              </svg>
+            </a>
+          </div>
+        )}
       </div>
 
       {/* 메타 정보 */}
@@ -92,7 +123,7 @@ export function RecipeDetailView({ book, liquor, dup, searchText }: RecipeDetail
           <div>
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">설명</h3>
             <p className="text-gray-800 dark:text-gray-200">
-              {parseDescriptionWithBadges(recipe.description, searchText)}
+              {parseDescriptionWithBadges(recipe.description, searchText, recipe.liquor)}
             </p>
           </div>
         )}
@@ -131,7 +162,33 @@ export function RecipeDetailView({ book, liquor, dup, searchText }: RecipeDetail
       {/* 레시피 */}
       {recipe.recipe && recipe.recipe.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-2xl font-semibold border-b border-gray-200 dark:border-gray-700 pb-2 text-gray-900 dark:text-white">레시피</h2>
+          <div className="flex items-center gap-4 border-b border-gray-200 dark:border-gray-700 pb-2">
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">레시피</h2>
+            {recipe.detailRecipe?.params && (
+              <a
+                href={`${KO_DRINK_ROUTES.DETAIL}?type=recipe&book=${encodeURIComponent(recipe.detailRecipe.params.book)}&liquor=${encodeURIComponent(recipe.detailRecipe.params.liquor)}${recipe.detailRecipe.params.dup ? `&dup=${recipe.detailRecipe.params.dup}` : ''}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline transition-colors"
+              >
+                <span>참조</span>
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                  />
+                </svg>
+              </a>
+            )}
+          </div>
           {recipe.recipe.map((step: RecipeStep, index: number) => (
             <div key={index} className="border-l-4 border-blue-500 pl-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-r">
               <div className="flex items-center gap-2 mb-2">

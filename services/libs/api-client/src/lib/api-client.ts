@@ -143,6 +143,13 @@ export class ApiClient {
     return response.data;
   }
 
+  async getBookImage(bookName: string): Promise<Blob> {
+    const response = await this.client.get(`/koreansool/images/book/${encodeURIComponent(bookName)}`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  }
+
   async getAnalysis(book: string, liq: string, dup: number): Promise<any> {
     const response = await this.client.get('/koreansool/analysis', {
       params: { book, liq, dup },

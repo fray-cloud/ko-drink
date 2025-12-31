@@ -1,8 +1,9 @@
-import { Controller, Get, Query, Res, UseInterceptors } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Query, Param, Res, UseInterceptors } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { QueryBus } from '@nestjs/cqrs';
 import type { Response } from 'express';
 import { GetImageQuery } from './queries/queries/get-image.query';
+import { GetBookImageQuery } from './queries/queries/get-book-image.query';
 import {
   CacheInterceptor,
   CacheKey,
@@ -40,6 +41,27 @@ export class ImageController {
   ) {
     const imageBuffer = await this.queryBus.execute(
       new GetImageQuery(book, liq, dup ? parseInt(dup.toString(), 10) : 1),
+    );
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.send(imageBuffer);
+  }
+
+  @Get('book/:bookName')
+  @ApiOperation({ summary: '문헌 이미지 조회' })
+  @ApiParam({ name: 'bookName', description: '문헌명', required: true })
+  @ApiResponse({
+    status: 200,
+    description: '문헌 이미지 파일',
+    type: 'application/octet-stream',
+  })
+  @UseInterceptors(CacheInterceptor)
+  @CacheKey('book-image')
+  async getBookImage(
+    @Param('bookName') bookName: string,
+    @Res() res: Response,
+  ) {
+    const imageBuffer = await this.queryBus.execute(
+      new GetBookImageQuery(bookName),
     );
     res.setHeader('Content-Type', 'image/jpeg');
     res.send(imageBuffer);

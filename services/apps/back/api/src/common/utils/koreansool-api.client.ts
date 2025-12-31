@@ -135,6 +135,25 @@ export class KoreansoolApiClient {
     }
   }
 
+  async getBookImage(bookName: string): Promise<Buffer> {
+    try {
+      const imageUrl = `http://koreansool.kr/ktw/img/book/${encodeURIComponent(bookName)}.jpg`;
+      const response = await axios.get(imageUrl, {
+        responseType: 'arraybuffer',
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
+      });
+      return Buffer.from(response.data);
+    } catch (error) {
+      if (error instanceof AxiosError) {
+        throw new Error(`Failed to fetch book image: ${error.message}`);
+      }
+      throw error;
+    }
+  }
+
   async getSimilarRecipes(
     book: string,
     liq: string,
