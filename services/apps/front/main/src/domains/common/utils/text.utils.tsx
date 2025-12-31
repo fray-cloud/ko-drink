@@ -33,6 +33,7 @@ export function parseDescriptionWithBadges(
   text: string,
   searchText?: string,
   title?: string,
+  enableSeries?: boolean, // 시리즈 패턴 파싱 활성화 여부
 ): React.ReactElement[] {
   if (!text) {
     return [];
@@ -61,21 +62,24 @@ export function parseDescriptionWithBadges(
   // 패턴 2: 숫자 + 공백 (숫자가 맨 앞에 오는 경우)
   // 숫자만 뱃지로 변환하고 단어는 유지
   // 먼저 시리즈 패턴을 찾아서 특별한 마커로 변환
-  const seriesPattern = /(?:(\S+)\s+)?(\d+)\s+/g;
+  // enableSeries가 false이면 시리즈 패턴 파싱을 건너뜀
   const seriesMarkers: Array<{ marker: string; word: string; number: string }> =
     [];
   let markerIndex = 0;
 
-  processedText = processedText.replace(
-    seriesPattern,
-    (match, word, number) => {
-      const marker = `__SERIES_${markerIndex}__`;
-      seriesMarkers.push({ marker, word: word || '', number });
-      markerIndex++;
-      // word가 있으면 "word marker " 형태로, 없으면 "marker " 형태로
-      return word ? `${word} ${marker} ` : `${marker} `;
-    },
-  );
+  if (enableSeries !== false) {
+    const seriesPattern = /(?:(\S+)\s+)?(\d+)\s+/g;
+    processedText = processedText.replace(
+      seriesPattern,
+      (match, word, number) => {
+        const marker = `__SERIES_${markerIndex}__`;
+        seriesMarkers.push({ marker, word: word || '', number });
+        markerIndex++;
+        // word가 있으면 "word marker " 형태로, 없으면 "marker " 형태로
+        return word ? `${word} ${marker} ` : `${marker} `;
+      },
+    );
+  }
 
   // "XX:《XXXX》" 패턴을 찾는 정규식 (XX는 정확히 두 글자)
   const badgePattern = /(.{2}):(《[^》]+》)/g;

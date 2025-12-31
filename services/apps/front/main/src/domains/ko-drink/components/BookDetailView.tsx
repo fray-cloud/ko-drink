@@ -134,7 +134,7 @@ export function BookDetailView({ bookName }: BookDetailViewProps) {
                       설명
                     </h3>
                 <p className="text-gray-800 dark:text-gray-200">
-                  {parseDescriptionWithBadges(book.description, undefined, book.name)}
+                  {parseDescriptionWithBadges(book.description, undefined, book.name, false)}
                 </p>
                   </div>
                 )}
@@ -178,7 +178,7 @@ export function BookDetailView({ bookName }: BookDetailViewProps) {
                   설명
                 </h3>
                 <p className="text-gray-800 dark:text-gray-200">
-                  {parseDescriptionWithBadges(book.description, undefined, book.name)}
+                  {parseDescriptionWithBadges(book.description, undefined, book.name, false)}
                 </p>
               </div>
             )}
